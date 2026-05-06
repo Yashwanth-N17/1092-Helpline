@@ -1,0 +1,155 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 217 56% 24%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 42 55% 55%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 220 14% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 56% 39%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 217 56% 24%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 217 56% 20%;
+    --sidebar-foreground: 220 20% 95%;
+    --sidebar-primary: 42 55% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 56% 16%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 217 40% 28%;
+    --sidebar-ring: 42 55% 55%;
+
+    --navy: 217 56% 24%;
+    --gold: 42 55% 55%;
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03), 0 1px 3px 0 rgb(0 0 0 / 0.04);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.03);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.03);
+    --shadow-card: 0 1px 3px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.03);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.01em;
+    font-size: 14px;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.025em;
+  }
+
+  /* Premium form elements */
+  input, select, textarea {
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 5px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-border/60 rounded-full;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-border;
+  }
+
+  .premium-card {
+    @apply bg-card rounded-xl border border-border/60 shadow-[var(--shadow-card)] backdrop-blur-sm;
+  }
+
+  .premium-gradient {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(217 56% 32%) 100%);
+  }
+
+  .glass-effect {
+    @apply bg-card/80 backdrop-blur-md border border-border/40;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+  }
+
+  /* Premium input styling */
+  .premium-input {
+    @apply border border-border rounded-xl px-3.5 py-2.5 bg-card text-foreground text-sm outline-none transition-all duration-200;
+    @apply focus:ring-2 focus:ring-primary/20 focus:border-primary;
+    @apply hover:border-primary/30;
+    @apply placeholder:text-muted-foreground/50;
+    @apply disabled:bg-accent disabled:text-muted-foreground disabled:cursor-not-allowed;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  .premium-select {
+    @apply premium-input appearance-none cursor-pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+
+  .premium-textarea {
+    @apply premium-input min-h-[100px] resize-y;
+  }
+
+  .premium-label {
+    @apply text-xs font-semibold text-muted-foreground uppercase tracking-wider font-display;
+  }
+
+  /* Recharts tooltip font */
+  .recharts-tooltip-wrapper .recharts-default-tooltip {
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif !important;
+    font-size: 12px !important;
+  }
+}
