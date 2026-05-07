@@ -34,11 +34,74 @@ Make sure you have Node.js installed.
    npm install
    ```
 
-### Running the Application
+## API Documentation
+
+The frontend communicates with the backend via a RESTful API and WebSockets.
+
+### Base URL
+- **API**: `http://localhost:3000/api`
+- **WebSocket**: `ws://localhost:3000`
+
+### Endpoints
+
+#### Authentication
+| Endpoint | Method | Body | Description |
+| :--- | :--- | :--- | :--- |
+| `/auth/login` | `POST` | `{ "agentId": "string", "password": "string" }` | Authenticate agent |
+| `/auth/logout` | `POST` | `none` | Invalidate session |
+
+#### Dashboard & Calls
+| Endpoint | Method | Query/Params | Description |
+| :--- | :--- | :--- | :--- |
+| `/dashboard/stats` | `GET` | `none` | General statistics |
+| `/calls/active` | `GET` | `none` | Currently active calls |
+| `/calls/recent` | `GET` | `?limit=10` | Recent call history |
+| `/calls/:id` | `GET` | `id` | Get call details |
+| `/calls/:id/interpret` | `PATCH` | `{ "key": "value" }` | Update AI interpretation |
+| `/calls/:id/verify` | `POST` | `{ "result": "string" }` | Verify call outcome |
+| `/calls/:id/escalate` | `POST` | `none` | Escalate call |
+| `/calls/:id/end` | `POST` | `none` | Mark call as completed |
+
+#### Analytics
+| Endpoint | Method | Query Params | Description |
+| :--- | :--- | :--- | :--- |
+| `/analytics/overview` | `GET` | `?from=ISO&to=ISO` | Overall analytics |
+| `/analytics/emotions` | `GET` | `?from=ISO&to=ISO` | Emotion trends |
+| `/analytics/languages`| `GET` | `?from=ISO&to=ISO` | Language distribution |
+
+### Request JSON Formats
+
+#### Login Request
+```json
+{
+  "agentId": "AGENT_001",
+  "password": "securepassword"
+}
+```
+
+#### Update Interpretation
+```json
+{
+  "summary": "Updated summary of the call...",
+  "urgency": "HIGH",
+  "location": "Central Park"
+}
+```
+
+#### Verification Result
+```json
+{
+  "result": "verified"
+}
+```
+
+---
+
+## Development
 
 Start the development server:
 ```bash
-npm start
+npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Open [http://localhost:5173](http://localhost:5173) to view it in your browser.

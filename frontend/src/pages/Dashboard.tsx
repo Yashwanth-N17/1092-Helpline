@@ -8,7 +8,10 @@ import ConfidenceBar from "@/components/common/ConfidenceBar";
 import EmotionIndicator from "@/components/common/EmotionIndicator";
 import { PremiumButton } from "@/components/common/PremiumButton";
 import { formatDuration, formatTime } from "@/utils/formatters";
+import { dashboardAPI } from "@/services/api";
 import { generateMockActiveCalls, generateMockRecentCalls, mockDashboardStats } from "@/utils/mockData";
+
+import { wsManager } from "@/services/websocket";
 
 function AnimatedCounter({ value, suffix = "" }: { value: number; suffix?: string }) {
   const [display, setDisplay] = useState(0);
@@ -39,12 +42,28 @@ const statCards = [
 export default function Dashboard() {
   const { activeCalls, recentCalls, setActiveCalls, setRecentCalls } = useCallStore();
   const navigate = useNavigate();
-  const [stats] = useState(mockDashboardStats);
+  const [stats, setStats] = useState(mockDashboardStats);
+
+  const fetchDashboardData = useCallback(() => {
+    dashboardAPI.getStats().then(res => setStats(res.data)).catch(() => {});
+    dashboardAPI.getActiveCalls().then(res => setActiveCalls(res.data)).catch(() => {});
+    dashboardAPI.getRecentCalls(10).then(res => setRecentCalls(res.data)).catch(() => {});
+  }, [setActiveCalls, setRecentCalls]);
 
   useEffect(() => {
-    setActiveCalls(generateMockActiveCalls(4));
-    setRecentCalls(generateMockRecentCalls(10));
-  }, [setActiveCalls, setRecentCalls]);
+    fetchDashboardData();
+
+    // Listen for real-time updates
+    wsManager.connect("/dashboard");
+    const unsub = wsManager.subscribe("new_call", () => {
+      fetchDashboardData();
+    });
+
+    return () => {
+      unsub();
+      wsManager.disconnect();
+    };
+  }, [fetchDashboardData]);
 
   const statusVariant = useCallback((status: string) => {
     if (status === "resolved") return "success" as const;

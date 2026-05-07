@@ -57,11 +57,6 @@ export default function ActiveCall() {
   const [takingControl, setTakingControl] = useState(false);
   const [endingCall, setEndingCall] = useState(false);
 
-  // Initialize call & WebSocket
-  useEffect(() => {
-    const call = generateMockCall({ callId: callId || "CALL-0001" });
-    setCurrentCall(call);
-
     // Connect WebSocket
     wsManager.connect(`/calls/${callId}`);
 
@@ -89,30 +84,16 @@ export default function ActiveCall() {
       updateCurrentCallField(insight);
     });
 
-    // Fallback mock interval if WS not connected
-    const interval = setInterval(() => {
-      const speakers: TranscriptLine["speaker"][] = ["citizen", "ai", "agent"];
-      const mockLines = [
-        "Heege maadidre olledu, dhanyavadagalu.",
-        "Nimma complaint number: KA-2024-78923",
-        "Ondhu nimisha, naan check maaduthiddeene.",
-        "BWSSB team nimagé 24 ghante olagé contact maaduttare.",
-        "Innu yenaadrú sahaya beku?",
-      ];
-      const line: TranscriptLine = {
-        id: Date.now().toString(),
-        speaker: speakers[Math.floor(Math.random() * speakers.length)],
-        text: mockLines[Math.floor(Math.random() * mockLines.length)],
-        timestamp: new Date().toISOString(),
-      };
-      appendTranscript(line);
-    }, 6000);
-
-    const verTimeout = setTimeout(() => setShowVerification(true), 8000);
+    // Fetch initial call data from API
+    callAPI.getCall(callId || "CALL-0001").then(res => {
+      setCurrentCall(res.data);
+    }).catch(() => {
+      // Fallback to initial mock if API fails
+      const call = generateMockCall({ callId: callId || "CALL-0001" });
+      setCurrentCall(call);
+    });
 
     return () => {
-      clearInterval(interval);
-      clearTimeout(verTimeout);
       unsubTranscript();
       unsubEmotion();
       unsubConfidence();
