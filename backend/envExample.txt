@@ -1,11 +1,4 @@
 PORT=3000
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/helpline?schema=public"
+DATABASE_URL="postgresql://postgres:password@localhost:5432/helpline?schema=public"
 AI_SERVICE_URL="http://localhost:8000"
-
-# Twilio Configuration (Mocks)
-TWILIO_ACCOUNT_SID="AC_mock_sid"
-TWILIO_AUTH_TOKEN="mock_auth_token"
-TWILIO_PHONE_NUMBER="+1234567890"
-
-# Secret Key for JWT
-JWT_SECRET="helpline_secret_key_1092"
+JWT_SECRET="your_secret_key"

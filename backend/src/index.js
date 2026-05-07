@@ -3,8 +3,8 @@ const http = require("http");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const callRoutes = require("./routes/callRoutes");
+const callActionRoutes = require("./routes/callActionRoutes");
 const SocketService = require("./services/socketService");
-const TwilioService = require("./services/twilioService");
 
 dotenv.config();
 
@@ -15,11 +15,9 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Twilio Webhook for incoming calls
-app.post("/api/twilio/voice", TwilioService.handleIncomingCall);
-
-// Routes
+// REST Routes
 app.use("/api/calls", callRoutes);
+app.use("/api/call-actions", callActionRoutes);
 
 app.get("/", (req, res) => {
   res.send("1092 Helpline Backend API (JS)");

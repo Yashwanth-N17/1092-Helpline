@@ -5,9 +5,8 @@ load_dotenv()
 
 class Settings:
     PROJECT_NAME: str = "1092 AI Service"
-    BHASHINI_API_KEY: str = os.getenv("BHASHINI_API_KEY", "")
-    BHASHINI_USER_ID: str = os.getenv("BHASHINI_USER_ID", "")
-    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "mock_gemini_key")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+    AI_MODE: str = os.getenv("AI_MODE", "mock")  # "mock" or "live"
 
 settings = Settings()

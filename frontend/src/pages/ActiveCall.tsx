@@ -32,7 +32,12 @@ export default function ActiveCall() {
   const [callEnded, setCallEnded] = useState(false);
   const transcriptRef = useRef<HTMLDivElement>(null);
 
-  // Audio recording state
+  // Agent live mic bridge (post-escalation)
+  const [isLive, setIsLive] = useState(false);
+  const agentStreamRef = useRef<MediaStream | null>(null);
+  const agentRecorderRef = useRef<MediaRecorder | null>(null);
+
+  // Audio recording state (for call logging)
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -57,8 +62,8 @@ export default function ActiveCall() {
   const [takingControl, setTakingControl] = useState(false);
   const [endingCall, setEndingCall] = useState(false);
 
-    // Connect WebSocket
-    wsManager.connect(`/calls/${callId}`);
+    // Connect agent WebSocket (routed via RTCBridge)
+    wsManager.connect(`/agent/${callId}`);
 
     const unsubTranscript = wsManager.subscribe("transcript_update", (data) => {
       const line = data as TranscriptLine;
@@ -84,6 +89,13 @@ export default function ActiveCall() {
       updateCurrentCallField(insight);
     });
 
+    // Auto-escalation trigger from backend
+    const unsubEscalation = wsManager.subscribe("escalation_required", () => {
+      toast.error("⚠️ Auto-escalation triggered — HIGH urgency detected!", { duration: 5000 });
+      setIsManualControl(true);
+      startAgentMic();
+    });
+
     // Fetch initial call data from API
     callAPI.getCall(callId || "CALL-0001").then(res => {
       setCurrentCall(res.data);
@@ -99,6 +111,8 @@ export default function ActiveCall() {
       unsubConfidence();
       unsubVerification();
       unsubAiInsight();
+      unsubEscalation();
+      stopAgentMic();
       wsManager.disconnect();
     };
   }, [callId, setCurrentCall, appendTranscript, updateCurrentCallField]);
@@ -112,18 +126,48 @@ export default function ActiveCall() {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
   }, [currentCall?.transcript]);
 
-  // Audio recording controls
+  // ── Agent Live Mic Bridge (post-escalation) ─────────────────────────────
+  const startAgentMic = useCallback(async () => {
+    if (isLive) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      agentStreamRef.current = stream;
+      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+      agentRecorderRef.current = recorder;
+
+      recorder.ondataavailable = async (e) => {
+        if (e.data.size > 0) {
+          const buf = await e.data.arrayBuffer();
+          const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+          wsManager.send({ type: "agent_audio_chunk", data: b64 });
+        }
+      };
+      recorder.start(1500); // send every 1.5s
+      setIsLive(true);
+      toast.success("🎙️ Your microphone is now LIVE to the citizen");
+    } catch {
+      toast.error("Microphone access denied");
+    }
+  }, [isLive]);
+
+  const stopAgentMic = useCallback(() => {
+    agentRecorderRef.current?.stop();
+    agentStreamRef.current?.getTracks().forEach((t) => t.stop());
+    agentRecorderRef.current = null;
+    agentStreamRef.current = null;
+    setIsLive(false);
+  }, []);
+
+  // ── Call recording (for logs) ──────────────────────────────────────────
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
-
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) audioChunksRef.current.push(event.data);
       };
-
       mediaRecorder.onstop = () => {
         const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         setAudioBlob(blob);
@@ -131,7 +175,6 @@ export default function ActiveCall() {
         stream.getTracks().forEach((t) => t.stop());
         toast.success("Recording saved and attached to call");
       };
-
       mediaRecorder.start();
       setIsRecording(true);
       setRecordingDuration(0);
@@ -155,9 +198,7 @@ export default function ActiveCall() {
 
     try {
       await callAPI.escalateCall(callId || "");
-    } catch {
-      // fallback to mock
-    }
+    } catch { /* fallback */ }
 
     const ctr = setInterval(() => {
       setEscalationCountdown((c) => {
@@ -166,7 +207,9 @@ export default function ActiveCall() {
           setTimeout(() => {
             setEscalationOverlay(false);
             setEscalating(false);
-            toast.success("Call escalated to human agent");
+            setIsManualControl(true);
+            startAgentMic(); // ← Open agent mic for two-way bridge
+            toast.success("You are now LIVE with the citizen");
           }, 1000);
           return 0;
         }
@@ -179,12 +222,11 @@ export default function ActiveCall() {
     setTakingControl(true);
     try {
       await callAPI.updateInterpretation(callId || "", { mode: "manual" });
-    } catch {
-      // fallback
-    }
+    } catch { /* fallback */ }
     setIsManualControl(true);
     setTakingControl(false);
-    toast.success("Manual control activated");
+    startAgentMic(); // ← Also opens live mic when agent takes control
+    toast.success("Manual control activated — mic is LIVE");
   };
 
   const handleEndCall = async () => {
