@@ -3,11 +3,12 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAgentStore } from "@/store/agentStore";
 import { setToken, setAgent } from "@/utils/helpers";
-import { Lock, User, ShieldCheck, ArrowRight, Sparkles } from "lucide-react";
+import { Lock, User, ShieldCheck, ArrowRight, Sparkles, Loader2 } from "lucide-react";
+import { API_BASE_URL } from "../apiConfig"; // Ensure this path is correct
 import toast from "react-hot-toast";
 
 export default function Login() {
-  const [agentId, setAgentId] = useState("");
+  const [agentId, setAgentId] = useState(""); // Used as 'email' or 'username' for backend
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -19,25 +20,44 @@ export default function Login() {
     setLoading(true);
     setError(false);
 
-    await new Promise((r) => setTimeout(r, 800));
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          email: agentId, // Mapping agentId to the email field expected by backend
+          password: password 
+        }),
+      });
 
-    if (agentId && password) {
-      const mockAgent = { agentId, agentName: "Agent " + agentId, role: "Operator" };
-      setToken("mock-jwt-token-" + agentId);
-      setAgent(mockAgent);
-      setAgentState(mockAgent);
-      toast.success("Welcome, Agent " + agentId);
-      navigate("/dashboard");
-    } else {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // 1. Update Utilities (LocalStorage)
+        setToken(data.token);
+        setAgent(data.agent);
+
+        // 2. Update Global Store (Zustand)
+        setAgentState(data.agent);
+
+        toast.success(`Access Granted: Welcome ${data.agent.name || agentId}`);
+        navigate("/dashboard");
+      } else {
+        setError(true);
+        toast.error(data.detail || "Invalid credentials");
+      }
+    } catch (err) {
       setError(true);
-      toast.error("Invalid credentials");
+      toast.error("Server connection failed. Is the Python backend running?");
+      console.error("Login Error:", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
     <div className="min-h-screen flex">
-      {/* Left Panel */}
+      {/* Left Panel - Branding & Identity */}
       <motion.div
         initial={{ x: -80, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
@@ -47,7 +67,6 @@ export default function Login() {
           background: "linear-gradient(160deg, hsl(217 56% 22%) 0%, hsl(217 56% 14%) 60%, hsl(220 50% 10%) 100%)",
         }}
       >
-        {/* Decorative elements */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-20 left-16 w-72 h-72 border border-white/5 rounded-full" />
           <div className="absolute bottom-16 right-12 w-96 h-96 border border-white/5 rounded-full" />
@@ -64,14 +83,14 @@ export default function Login() {
             <Sparkles className="w-12 h-12 text-secondary-foreground" />
           </motion.div>
           <div className="space-y-3">
-            <h1 className="text-4xl font-extrabold font-display tracking-tight">1092 Helpline</h1>
+            <h1 className="text-4xl font-extrabold font-display tracking-tight text-white">1092 Helpline</h1>
             <p className="text-white/60 text-lg font-medium">AI-Powered Citizen Support</p>
           </div>
           <div className="w-12 h-0.5 bg-secondary/60 mx-auto rounded-full" />
           <div className="space-y-1.5">
             <p className="text-sm text-white/50 font-medium">Government of Karnataka</p>
-            <p className="text-xs text-white/30">
-              Department of Personnel &amp; Administrative Reforms
+            <p className="text-xs text-white/30 italic">
+              Department of Personnel & Administrative Reforms
             </p>
           </div>
           <motion.p
@@ -85,7 +104,7 @@ export default function Login() {
         </div>
       </motion.div>
 
-      {/* Right Panel */}
+      {/* Right Panel - Form */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -94,14 +113,14 @@ export default function Login() {
       >
         <div className="w-full max-w-[380px] space-y-10">
           <div className="text-center lg:text-left space-y-2">
-            <h2 className="text-2xl font-bold text-foreground font-display tracking-tight">Welcome back</h2>
-            <p className="text-muted-foreground text-sm">Sign in to the helpline dashboard</p>
+            <h2 className="text-2xl font-bold text-foreground font-display tracking-tight">Agent Login</h2>
+            <p className="text-muted-foreground text-sm">Sign in to the emergency dashboard</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <label className="text-sm font-semibold text-foreground font-display" htmlFor="agentId">
-                Agent ID
+                Agent Identity
               </label>
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
@@ -110,18 +129,19 @@ export default function Login() {
                   type="text"
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
-                  className={`w-full pl-11 pr-4 py-3 border rounded-xl bg-card text-foreground text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-premium-sm ${
-                    error ? "border-destructive animate-[shake_0.3s_ease]" : "border-border"
+                  className={`w-full pl-11 pr-4 py-3 border rounded-xl bg-card text-foreground text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm ${
+                    error ? "border-destructive animate-pulse" : "border-border"
                   }`}
-                  placeholder="Enter your Agent ID"
+                  placeholder="agent.id@gov.in"
                   aria-label="Agent ID"
+                  required
                 />
               </div>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-semibold text-foreground font-display" htmlFor="password">
-                Password
+                Security Key
               </label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
@@ -130,11 +150,12 @@ export default function Login() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`w-full pl-11 pr-4 py-3 border rounded-xl bg-card text-foreground text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-premium-sm ${
-                    error ? "border-destructive animate-[shake_0.3s_ease]" : "border-border"
+                  className={`w-full pl-11 pr-4 py-3 border rounded-xl bg-card text-foreground text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm ${
+                    error ? "border-destructive animate-pulse" : "border-border"
                   }`}
                   placeholder="Enter your password"
                   aria-label="Password"
+                  required
                 />
               </div>
             </div>
@@ -144,13 +165,16 @@ export default function Login() {
               disabled={loading}
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
-              className="w-full py-3 premium-gradient text-primary-foreground rounded-xl font-semibold text-sm shadow-premium hover:shadow-premium-lg transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2 group"
+              className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-semibold text-sm shadow-lg hover:brightness-110 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2 group"
             >
               {loading ? (
-                "Authenticating..."
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Authenticating...
+                </>
               ) : (
                 <>
-                  Sign In
+                  Secure Sign In
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </>
               )}
@@ -158,8 +182,8 @@ export default function Login() {
           </form>
 
           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/70">
-            <ShieldCheck className="w-4 h-4" />
-            <span className="font-medium">Secured Government Portal</span>
+            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            <span className="font-medium">Authorized Government Terminal</span>
           </div>
         </div>
       </motion.div>

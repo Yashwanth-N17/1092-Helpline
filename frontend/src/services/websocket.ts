@@ -1,7 +1,7 @@
 import { WS_URL } from "@/utils/constants";
 import toast from "react-hot-toast";
 
-type EventCallback = (data: unknown) => void;
+type EventCallback = (data: any) => void;
 
 class WebSocketManager {
   private ws: WebSocket | null = null;
@@ -11,10 +11,25 @@ class WebSocketManager {
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private url = "";
 
+  // Helper to check connection status from the UI
+  get connected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+
   connect(path: string): void {
+    // Ensure we don't have multiple connections
+    if (this.ws) this.disconnect();
+    
     this.url = `${WS_URL}${path}`;
     this.reconnectAttempts = 0;
     this.createConnection();
+  }
+
+  // CRITICAL: Added send method so ActiveCall.tsx can stream audio
+  send(type: string, data: any): void {
+    if (this.connected) {
+      this.ws?.send(JSON.stringify({ type, data }));
+    }
   }
 
   private createConnection(): void {
@@ -24,6 +39,7 @@ class WebSocketManager {
       this.ws.onopen = () => {
         this.reconnectAttempts = 0;
         this.startHeartbeat();
+        console.log("🟢 WebSocket Connected");
       };
 
       this.ws.onmessage = (event) => {
@@ -47,11 +63,11 @@ class WebSocketManager {
         }
       };
 
-      this.ws.onerror = () => {
-        // ws will fire onclose after onerror
+      this.ws.onerror = (error) => {
+        console.error("🔴 WebSocket Error:", error);
       };
-    } catch {
-      // connection failed
+    } catch (error) {
+      console.error("🔴 Connection Failed:", error);
     }
   }
 
@@ -67,15 +83,19 @@ class WebSocketManager {
 
   disconnect(): void {
     this.stopHeartbeat();
-    this.ws?.close();
+    if (this.ws) {
+      this.ws.onclose = null; // Prevent reconnection logic on manual disconnect
+      this.ws.close();
+    }
     this.ws = null;
-    this.subscribers.clear();
+    // We don't clear subscribers here so they persist across re-connects 
+    // unless you explicitly want to wipe them.
   }
 
   private startHeartbeat(): void {
     this.heartbeatInterval = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: "ping" }));
+      if (this.connected) {
+        this.send("ping", { timestamp: new Date().toISOString() });
       }
     }, 30000);
   }
