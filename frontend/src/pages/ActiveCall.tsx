@@ -62,6 +62,7 @@ export default function ActiveCall() {
   const [takingControl, setTakingControl] = useState(false);
   const [endingCall, setEndingCall] = useState(false);
 
+  useEffect(() => {
     // Connect agent WebSocket (routed via RTCBridge)
     wsManager.connect(`/agent/${callId}`);
 
@@ -94,6 +95,15 @@ export default function ActiveCall() {
       toast.error("⚠️ Auto-escalation triggered — HIGH urgency detected!", { duration: 5000 });
       setIsManualControl(true);
       startAgentMic();
+    });
+
+    // Real-time audio bridge from citizen
+    const unsubCitizenAudio = wsManager.subscribe("citizen_audio", (data) => {
+      const { data: b64 } = data as { data: string };
+      if (b64) {
+        const audio = new Audio("data:audio/webm;codecs=opus;base64," + b64);
+        audio.play().catch(() => {});
+      }
     });
 
     // Fetch initial call data from API

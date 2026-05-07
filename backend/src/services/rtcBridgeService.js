@@ -1,10 +1,12 @@
 const AIBridgeService = require("./aiBridgeService");
 const { PrismaClient } = require("@prisma/client");
+const EventEmitter = require("events");
 const prisma = new PrismaClient();
 
-class RTCBridgeService {
+class RTCBridgeService extends EventEmitter {
   constructor() {
-    // callId -> { citizen: ws, agent: ws | null, escalated: bool, audioBuffer: Buffer, lastProcessTime: number }
+    super();
+    // callId -> { citizen: ws, agent: ws | null, escalated: bool, audioBuffer: Buffer, agentAudioBuffer: Buffer, lastProcessTime: number, lastAgentProcessTime: number }
     this.rooms = new Map();
   }
 
@@ -12,19 +14,21 @@ class RTCBridgeService {
    * Register a citizen WebSocket connection for a call
    */
   async registerCitizen(callId, ws) {
+    console.log(`[RTCBridge] REGISTER_CITIZEN: ${callId}`);
+    
     if (!this.rooms.has(callId)) {
       this.rooms.set(callId, { 
         citizen: null, 
         agent: null, 
         escalated: false, 
         audioBuffer: Buffer.alloc(0),
-        lastProcessTime: Date.now()
+        agentAudioBuffer: Buffer.alloc(0),
+        lastProcessTime: Date.now(),
+        lastAgentProcessTime: Date.now()
       });
     }
     const room = this.rooms.get(callId);
     room.citizen = ws;
-
-    console.log(`[RTCBridge] Citizen connected for call ${callId}`);
 
     // Create call record in DB if it doesn't exist
     try {
@@ -37,20 +41,21 @@ class RTCBridgeService {
             startTime: new Date(),
           },
         });
-        console.log(`[RTCBridge] Created DB record for call ${callId}`);
-        const socketService = require("./socketService");
-        socketService.broadcastAll("new_call", { callId });
+        console.log(`[RTCBridge] DB_CREATED: ${callId}`);
+        this.emit("new_call", { callId });
 
         // Send initial greeting to the citizen
         setTimeout(() => {
-          this._sendToCitizen(callId, {
-            type: "ai_speech",
-            text: "Namaskara! This is the 1092 Helpline. What is your emergency? (ನೀವು ಕನ್ನಡದಲ್ಲೂ ಮಾತನಾಡಬಹುದು)"
-          });
+          if (!room.escalated) {
+            this._sendToCitizen(callId, {
+              type: "ai_speech",
+              text: "Namaskara! This is the 1092 Helpline. What is your emergency? (ನೀವು ಕನ್ನಡದಲ್ಲೂ ಮಾತನಾಡಬಹುದು)"
+            });
+          }
         }, 2500);
       }
     } catch (e) {
-      console.error("[RTCBridge] Failed to create call record:", e.message);
+      console.error("[RTCBridge] DB_ERROR:", e.message);
     }
 
     ws.on("message", async (rawMsg) => {
@@ -60,21 +65,26 @@ class RTCBridgeService {
         if (msg.type === "audio_chunk") {
           const chunk = Buffer.from(msg.data, "base64");
           room.audioBuffer = Buffer.concat([room.audioBuffer, chunk]);
+          
+          if (room.escalated && room.agent && room.agent.readyState === 1) {
+             room.agent.send(JSON.stringify({ type: "citizen_audio", data: msg.data }));
+          }
 
-          // Process buffer every 4 seconds if it has data
           const now = Date.now();
           if (now - room.lastProcessTime > 4000 && room.audioBuffer.length > 0) {
             room.lastProcessTime = now;
-            this._processAudio(callId);
+            this._processAudio(callId, "citizen");
           }
         } else if (msg.type === "ping") {
           ws.send(JSON.stringify({ type: "pong" }));
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error(`[RTCBridge] MSG_ERROR: ${e.message}`);
+      }
     });
 
     ws.on("close", () => {
-      console.log(`[RTCBridge] Citizen disconnected for call ${callId}`);
+      console.log(`[RTCBridge] CITIZEN_DISCONNECTED: ${callId}`);
       const r = this.rooms.get(callId);
       if (r) r.citizen = null;
     });
@@ -90,19 +100,31 @@ class RTCBridgeService {
         agent: null, 
         escalated: false, 
         audioBuffer: Buffer.alloc(0),
-        lastProcessTime: Date.now()
+        agentAudioBuffer: Buffer.alloc(0),
+        lastProcessTime: Date.now(),
+        lastAgentProcessTime: Date.now()
       });
     }
     const room = this.rooms.get(callId);
     room.agent = ws;
 
-    console.log(`[RTCBridge] Agent connected for call ${callId}`);
+    console.log(`[RTCBridge] AGENT_CONNECTED: ${callId}`);
 
     ws.on("message", async (rawMsg) => {
       try {
         const msg = JSON.parse(rawMsg.toString());
         if (msg.type === "agent_audio_chunk" && room.escalated) {
           this._sendToCitizen(callId, { type: "agent_audio", data: msg.data });
+          
+          // Buffer agent voice for transcription to show in dashboard
+          const chunk = Buffer.from(msg.data, "base64");
+          room.agentAudioBuffer = Buffer.concat([room.agentAudioBuffer, chunk]);
+          
+          const now = Date.now();
+          if (now - room.lastAgentProcessTime > 4000 && room.agentAudioBuffer.length > 0) {
+             room.lastAgentProcessTime = now;
+             this._processAudio(callId, "agent");
+          }
         } else if (msg.type === "ping") {
           ws.send(JSON.stringify({ type: "pong" }));
         }
@@ -110,31 +132,27 @@ class RTCBridgeService {
     });
 
     ws.on("close", () => {
-      console.log(`[RTCBridge] Agent disconnected for call ${callId}`);
+      console.log(`[RTCBridge] AGENT_DISCONNECTED: ${callId}`);
       const r = this.rooms.get(callId);
       if (r) r.agent = null;
     });
   }
 
   /**
-   * Process accumulated audio buffer
+   * Process audio for transcription (supports both citizen and agent)
    */
-  async _processAudio(callId) {
+  async _processAudio(callId, speakerType = "citizen") {
     const room = this.rooms.get(callId);
-    if (!room || room.audioBuffer.length === 0) return;
+    if (!room) return;
 
-    // If escalated, forward raw audio chunks to agent is handled per-chunk usually,
-    // but here we are in AI mode. If they escalated mid-buffer, we stop AI.
-    if (room.escalated) return;
+    const bufferField = speakerType === "citizen" ? "audioBuffer" : "agentAudioBuffer";
+    if (room[bufferField].length === 0) return;
 
-    console.log(`[RTCBridge] Processing ${room.audioBuffer.length} bytes for ${callId}`);
+    const currentBuffer = room[bufferField];
+    room[bufferField] = Buffer.alloc(0);
 
-    // Send the current FULL buffer to AI for analysis
-    const result = await AIBridgeService.processAudioChunk(callId, room.audioBuffer);
+    const result = await AIBridgeService.processAudioChunk(callId, currentBuffer);
     if (!result || !result.transcript) return;
-
-    // Clear buffer so we can start fresh for the next segment
-    room.audioBuffer = Buffer.alloc(0);
 
     const { transcript, emotion, urgency, category, respond_text, tts_audio } = result;
 
@@ -143,19 +161,21 @@ class RTCBridgeService {
       const call = await prisma.call.findUnique({ where: { callId } });
       if (call) {
         const existing = Array.isArray(call.transcript) ? call.transcript : [];
-        
         await prisma.call.update({
           where: { callId },
           data: {
             transcript: [...existing, {
               id: Date.now().toString(),
-              speaker: "citizen",
+              speaker: speakerType,
               text: transcript,
               timestamp: new Date().toISOString(),
             }],
-            emotion: emotion || call.emotion,
-            urgency: urgency?.toUpperCase() || call.urgency,
-            category: category || call.category,
+            // Only update insights if it's the citizen speaking
+            ...(speakerType === "citizen" ? {
+               emotion: emotion || call.emotion,
+               urgency: urgency?.toUpperCase() || call.urgency,
+               category: category || call.category,
+            } : {})
           },
         });
       }
@@ -163,21 +183,30 @@ class RTCBridgeService {
 
     // Notify agent dashboard
     if (room.agent && room.agent.readyState === 1) {
-      room.agent.send(JSON.stringify({ type: "transcript_update", data: {
-        id: Date.now().toString(), speaker: "citizen", text: transcript,
-        timestamp: new Date().toISOString()
-      }}));
-      room.agent.send(JSON.stringify({ type: "emotion_update", data: { emotion } }));
-      room.agent.send(JSON.stringify({ type: "confidence_update", data: { confidence: 0.9, reason: `Urgency: ${urgency}` } }));
+      room.agent.send(JSON.stringify({ 
+        type: "transcript_update", 
+        data: {
+          id: Date.now().toString(), 
+          speaker: speakerType, 
+          text: transcript,
+          timestamp: new Date().toISOString()
+        }
+      }));
+      
+      if (speakerType === "citizen") {
+        room.agent.send(JSON.stringify({ type: "emotion_update", data: { emotion } }));
+        room.agent.send(JSON.stringify({ type: "confidence_update", data: { confidence: 0.9, reason: `Urgency: ${urgency}` } }));
+      }
     }
 
-    // Send AI TTS or text-to-speech instructions back to citizen
-    if (respond_text) {
-      this._sendToCitizen(callId, { type: "ai_speech", text: respond_text });
-    }
-    
-    if (tts_audio) {
-      this._sendToCitizen(callId, { type: "ai_audio", data: tts_audio });
+    // AI only speaks back to citizen if it's NOT escalated and responding to the citizen
+    if (!room.escalated && speakerType === "citizen") {
+      if (respond_text) {
+        this._sendToCitizen(callId, { type: "ai_speech", text: respond_text });
+      }
+      if (tts_audio) {
+        this._sendToCitizen(callId, { type: "ai_audio", data: tts_audio });
+      }
     }
   }
 
@@ -194,9 +223,8 @@ class RTCBridgeService {
     } catch (e) {}
 
     this._sendToCitizen(callId, {
-      type: "ai_audio",
-      data: null,
-      message: "Connecting you to a human specialist.",
+      type: "ai_speech",
+      text: "I am connecting you to a live responder. Please stay on the line.",
     });
 
     if (room.agent && room.agent.readyState === 1) {

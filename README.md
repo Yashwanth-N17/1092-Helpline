@@ -1,57 +1,62 @@
-# 1092 AI Helpline
+# 1092 AI Helpline (Modernized)
 
-An AI-powered emergency helpline system designed to assist operators in managing emergency calls more effectively. The system provides real-time transcription, emotion detection, language identification, and automated summarization to prioritize and handle critical situations.
+A high-performance, AI-powered emergency response system that bridges the gap between citizens and responders using WebRTC and Gemini 1.5 Flash.
 
 ## Project Structure
 
-- **[frontend](file:///c:/Users/yashu/OneDrive/Desktop/WorkSpace/1092%20Helpline/frontend)**: React-based dashboard for helpline agents and administrators.
-- **[backend](file:///c:/Users/yashu/OneDrive/Desktop/WorkSpace/1092%20Helpline/backend)**: Node.js server handling WebSockets, Database (Prisma), and coordination between frontend and AI services.
-- **[ai_service](file:///c:/Users/yashu/OneDrive/Desktop/WorkSpace/1092%20Helpline/ai_service)**: FastAPI (Python) service handling STT (Bhashini), Analysis (Groq/Llama 3), and TTS.
+- **frontend**: React + Vite + Tailwind CSS dashboard and SOS interface.
+- **backend**: Node.js server handling WebRTC signaling, Database (Prisma), and AI coordination.
+- **ai_service**: Python FastAPI service leveraging Gemini 1.5 Flash for unified Audio Analysis and Transcription.
 
-## Workflow Pipeline
+## Modernized Architecture (v2.0)
 
-1. **Audio Capture**: Incoming calls via **Twilio**, streamed to the Node.js backend using WebSockets.
-2. **STT**: Processed by Bhashini (IndicWhisper) in `ai_service`.
-3. **Analysis**: Sentiment, urgency, and intent analysis via Groq (Llama 3).
-4. **Verification**: Automated understanding checks via Bhashini TTS.
-5. **Storage**: Call packets and analytics stored in PostgreSQL via Prisma.
+1. **WebRTC Pipeline**: Direct citizen-to-server audio streaming (no Twilio/legacy dependency).
+2. **Unified AI Analysis**: Single-pass processing using **Gemini 1.5 Flash** for:
+   - Real-time Transcription (Kannada/English).
+   - Emotion & Urgency Detection.
+   - Intent Analysis & Automated dispatcher interviewing.
+3. **Dual-Channel Monitoring**: Simultaneous transcription of both citizen and responder.
+4. **Live Voice Bridge**: Low-latency bi-directional voice communication between agent and citizen.
 
 ## Getting Started
 
 ### Prerequisites
 - Node.js (v18+)
 - Python (3.9+)
-- PostgreSQL
+- PostgreSQL (Database)
+- Gemini API Key
 
 ### Installation & Run
 
-1. **AI Service**:
-   ```bash
-   cd ai_service
-   pip install -r requirements.txt
-   uvicorn app.main:app --reload
-   ```
+Open three terminal windows and run the following:
 
-2. **Backend**:
-   ```bash
-   cd backend
-   npm install
-   npx prisma migrate dev
-   npm run dev
-   ```
+#### 1. AI Service (Port 8000)
+```bash
+cd ai_service
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
 
-3. **Frontend**:
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
+#### 2. Backend (Port 3000)
+```bash
+cd backend
+npm install
+npx prisma generate
+npm run dev
+```
 
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
+#### 3. Frontend (Port 5173)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Features
+- **SOS Page**: Public-facing WebRTC emergency link.
+- **Agent Dashboard**: Real-time active call tracking with AI insights.
+- **Auto-Escalation**: System automatically triggers human intervention for high-urgency cases.
+- **Interactive AI Dispatcher**: AI asks clarifying questions (Location, Nature of emergency) until an agent takes over.
 
 ## License
-
-This project is licensed under the MIT License.
+MIT License

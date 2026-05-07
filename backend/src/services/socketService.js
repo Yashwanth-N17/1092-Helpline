@@ -6,6 +6,11 @@ class SocketService {
     this.wss = new WebSocketServer({ server });
     this.clients = new Map(); // agentCallId -> ws
     this.init();
+
+    // Listen for events from RTCBridge (avoids circular dependency)
+    rtcBridge.on("new_call", (data) => {
+      this.broadcastAll("new_call", data);
+    });
   }
 
   init() {

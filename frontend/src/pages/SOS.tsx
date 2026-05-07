@@ -35,6 +35,7 @@ const SOS = () => {
       socketRef.current = socket;
 
       socket.onopen = () => {
+        console.log(`[SOS] SOCKET_OPENED for ${id}`);
         setStatus("Live - AI is Listening");
         startStreaming(stream);
       };
@@ -42,33 +43,48 @@ const SOS = () => {
       socket.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          console.log("[SOS] Received:", msg);
+          console.log(`[SOS] MSG_RECEIVED from Server:`, msg);
 
           if (msg.type === "ai_speech" && msg.text) {
+            console.log(`[SOS] TRIGGER_TTS: "${msg.text}"`);
             setLastAiMessage(msg.text);
             
             // Speak using browser TTS
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(msg.text);
-            if (msg.text.match(/[\u0C80-\u0CFF]/)) {
-              utterance.lang = "kn-IN";
+            if ('speechSynthesis' in window) {
+              window.speechSynthesis.cancel();
+              const utterance = new SpeechSynthesisUtterance(msg.text);
+              if (msg.text.match(/[\u0C80-\u0CFF]/)) {
+                utterance.lang = "kn-IN";
+              } else {
+                utterance.lang = "en-US";
+              }
+              
+              utterance.onstart = () => console.log("[SOS] TTS_STARTED");
+              utterance.onend = () => console.log("[SOS] TTS_ENDED");
+              utterance.onerror = (e) => console.error("[SOS] TTS_ERROR:", e);
+              
+              window.speechSynthesis.speak(utterance);
             } else {
-              utterance.lang = "en-US";
+              console.error("[SOS] TTS_NOT_SUPPORTED");
             }
-            window.speechSynthesis.speak(utterance);
             
-            // Visual feedback
             toast(msg.text, { icon: "🤖", duration: 4000 });
+          } else if (msg.type === "agent_audio" && msg.data) {
+            console.log(`[SOS] RECEIVING_AGENT_VOICE`);
+            const audio = new Audio("data:audio/webm;codecs=opus;base64," + msg.data);
+            audio.play().catch(e => console.error("[SOS] AGENT_AUDIO_FAILED:", e));
           } else if (msg.type === "ai_audio" && msg.data) {
+            console.log(`[SOS] TRIGGER_AUDIO_PLAYBACK`);
             const audio = new Audio("data:audio/wav;base64," + msg.data);
-            audio.play().catch(e => console.error("Audio playback failed:", e));
+            audio.play().catch(e => console.error("[SOS] AUDIO_PLAY_FAILED:", e));
           }
         } catch (e) {
-          console.error("Socket message error:", e);
+          console.error("[SOS] MSG_PARSE_ERROR:", e);
         }
       };
 
-      socket.onclose = () => {
+      socket.onclose = (e) => {
+        console.log(`[SOS] SOCKET_CLOSED: code=${e.code} reason=${e.reason}`);
         stopCall();
       };
 
