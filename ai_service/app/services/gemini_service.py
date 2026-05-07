@@ -2,7 +2,6 @@ import google.generativeai as genai
 import os
 import json
 import base64
-import tempfile
 from app.core.config import settings
 
 # Configure Gemini
@@ -11,19 +10,17 @@ genai.configure(api_key=settings.GEMINI_API_KEY)
 MOCK_SENTENCES = [
     "There is a fire in our building please help us",
     "My father collapsed and is not breathing",
-    "There is a flood in our area send help",
     "Someone is trying to break into my house",
-    "There has been a road accident near the highway",
 ]
 
 class GeminiService:
     def __init__(self):
+        # We use flash for speed
         self.model = genai.GenerativeModel("gemini-1.5-flash")
 
     async def process_audio(self, audio_bytes: bytes, language: str = "kn") -> dict:
         """
-        Processes audio directly using Gemini 1.5 Flash.
-        Returns transcript, urgency, emotion, and category.
+        Processes audio directly using Gemini 1.5 Flash via inline data.
         """
         if settings.AI_MODE == "mock":
             import random
@@ -36,58 +33,57 @@ class GeminiService:
             }
 
         try:
-            # Save audio to a temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
-                temp_audio.write(audio_bytes)
-                temp_path = temp_audio.name
-
-            # Upload to Gemini
-            audio_file = genai.upload_file(path=temp_path, display_name="Emergency Audio")
+            # Prepare audio part for Gemini
+            audio_part = {
+                "mime_type": "audio/webm", # Most browsers record in webm
+                "data": base64.b64encode(audio_bytes).decode("utf-8")
+            }
             
             prompt = """
-            Listen to this audio (mostly in Kannada or English). 
-            1. Transcribe the audio precisely.
-            2. Analyze the emergency:
-               - Urgency: (Low, Medium, High, Critical)
-               - Emotion: (Panic, Calm, Crying, Aggressive)
-               - Category: (Fire, Medical, Crime, Accident, Natural Disaster, Other)
-            3. Provide a short verification sentence in the SAME language as the caller to comfort them.
+            You are an AI Emergency Dispatcher for the 1092 Helpline. 
+            Your goal is to gather critical information from the caller (Kannada or English).
             
-            Return ONLY a JSON object with keys: 
-            "transcript", "urgency", "emotion", "category", "verification_sentence"
+            1. Transcribe the audio exactly.
+            2. Analyze the emergency:
+               - urgency: (Low, Medium, High, Critical)
+               - emotion: (Panic, Calm, Crying, Aggressive)
+               - category: (Fire, Medical, Crime, Accident, Other)
+            3. respond_text: Based on what you heard, ask the NEXT most important question.
+               - If you don't know the location, ASK for it.
+               - If you don't know the nature of the emergency, ASK for it.
+               - If they are panicking, comfort them first then ask.
+               - Keep it brief and professional.
+            
+            Return ONLY a valid JSON object:
+            {"transcript": "...", "urgency": "...", "emotion": "...", "category": "...", "respond_text": "..."}
             """
 
-            response = self.model.generate_content([prompt, audio_file])
+            response = self.model.generate_content([prompt, audio_part])
             
-            # Extract JSON from response
-            text_response = response.text
-            # Simple JSON extraction (remove markdown code blocks if present)
-            if "```json" in text_response:
-                text_response = text_response.split("```json")[1].split("```")[0].strip()
-            elif "```" in text_response:
-                text_response = text_response.split("```")[1].split("```")[0].strip()
+            text_response = response.text.strip()
+            # Advanced JSON extraction
+            if "{" in text_response and "}" in text_response:
+                start = text_response.find("{")
+                end = text_response.rfind("}") + 1
+                text_response = text_response[start:end]
             
             result = json.loads(text_response)
             
-            # Cleanup temp file
-            os.remove(temp_path)
+            # Ensure mandatory fields
+            if "respond_text" not in result:
+                result["respond_text"] = "I am listening. Please continue."
             
             return result
+
         except Exception as e:
             print(f"[GeminiService] Error: {e}")
             return {
-                "transcript": "Error processing audio",
-                "urgency": "Unknown",
-                "emotion": "Unknown",
+                "transcript": "Listening...",
+                "urgency": "Normal",
+                "emotion": "Neutral",
                 "category": "Other",
-                "verification_sentence": "We are having trouble hearing you. Please stay on the line."
+                "verification_sentence": "We are listening, please continue."
             }
 
     async def text_to_speech(self, text: str, language: str = "kn") -> bytes | None:
-        """
-        Note: Gemini doesn't do TTS natively yet. 
-        For now, we can use a basic alternative or return None.
-        """
-        # If the user wants a full Gemini experience, they might use Google Cloud TTS.
-        # For this shift, we'll keep it as a placeholder or use a simple free alternative.
         return None

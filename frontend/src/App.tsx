@@ -13,6 +13,8 @@ const CallHistory = lazy(() => import("./pages/CallHistory"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Notifications = lazy(() => import("./pages/Notifications"));
+const Index = lazy(() => import("./pages/Index"));
+const SOS = lazy(() => import("./pages/SOS"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -43,11 +45,17 @@ const App = () => {
           },
         }}
       />
-      <BrowserRouter>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <Suspense fallback={<LoadingSpinner text="Loading page..." />}>
           <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/sos" element={<SOS />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route
               element={
                 <AuthGuard>

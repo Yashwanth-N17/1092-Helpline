@@ -4,6 +4,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const callRoutes = require("./routes/callRoutes");
 const callActionRoutes = require("./routes/callActionRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
 const SocketService = require("./services/socketService");
 
 dotenv.config();
@@ -18,6 +19,7 @@ app.use(express.json());
 // REST Routes
 app.use("/api/calls", callRoutes);
 app.use("/api/call-actions", callActionRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 app.get("/", (req, res) => {
   res.send("1092 Helpline Backend API (JS)");

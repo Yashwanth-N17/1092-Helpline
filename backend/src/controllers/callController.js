@@ -15,6 +15,20 @@ class CallController {
     }
   }
 
+  static async getRecentCalls(req, res) {
+    const limit = parseInt(req.query.limit) || 10;
+    try {
+      const calls = await prisma.call.findMany({
+        where: { status: { not: "active" } },
+        orderBy: { startTime: "desc" },
+        take: limit,
+      });
+      res.json(calls);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
   static async getCallDetail(req, res) {
     const { id } = req.params;
     try {

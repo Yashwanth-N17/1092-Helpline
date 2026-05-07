@@ -43,6 +43,7 @@ export const dashboardAPI = {
   getStats: () => api.get("/dashboard/stats"),
   getActiveCalls: () => api.get("/calls/active"),
   getRecentCalls: (limit = 10) => api.get(`/calls/recent?limit=${limit}`),
+  endCall: (callId: string) => api.post(`/calls/${callId}/end`),
 };
 
 /** Call API */

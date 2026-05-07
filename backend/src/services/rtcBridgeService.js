@@ -1,57 +1,76 @@
-/**
- * WebRTC Signaling & Audio Bridge
- *
- * Connection types (identified by WebSocket URL):
- *   /citizen/{callId}  — public SOS page (no auth)
- *   /agent/{callId}    — agent dashboard (authenticated)
- *
- * Message types:
- *   citizen -> server:  { type: "audio_chunk", data: base64 }
- *   server -> citizen:  { type: "ai_audio", data: base64 }   (AI TTS)
- *   server -> agent:    { type: "transcript_update", data: {...} }
- *   server -> agent:    { type: "emotion_update", data: {...} }
- *   server -> agent:    { type: "confidence_update", data: {...} }
- *   agent -> server:    { type: "agent_audio_chunk", data: base64 }
- *   server -> citizen:  { type: "agent_audio", data: base64 }  (after escalation)
- *   server -> agent:    { type: "escalation_required", data: {} } (auto-escalation)
- */
-
 const AIBridgeService = require("./aiBridgeService");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 class RTCBridgeService {
   constructor() {
-    // callId -> { citizen: ws, agent: ws | null, escalated: bool, buffer: [] }
+    // callId -> { citizen: ws, agent: ws | null, escalated: bool, audioBuffer: Buffer, lastProcessTime: number }
     this.rooms = new Map();
   }
 
   /**
    * Register a citizen WebSocket connection for a call
    */
-  registerCitizen(callId, ws) {
+  async registerCitizen(callId, ws) {
     if (!this.rooms.has(callId)) {
-      this.rooms.set(callId, { citizen: null, agent: null, escalated: false, buffer: [] });
+      this.rooms.set(callId, { 
+        citizen: null, 
+        agent: null, 
+        escalated: false, 
+        audioBuffer: Buffer.alloc(0),
+        lastProcessTime: Date.now()
+      });
     }
     const room = this.rooms.get(callId);
     room.citizen = ws;
 
     console.log(`[RTCBridge] Citizen connected for call ${callId}`);
 
+    // Create call record in DB if it doesn't exist
+    try {
+      const existing = await prisma.call.findUnique({ where: { callId } });
+      if (!existing) {
+        await prisma.call.create({
+          data: {
+            callId,
+            status: "active",
+            startTime: new Date(),
+          },
+        });
+        console.log(`[RTCBridge] Created DB record for call ${callId}`);
+        const socketService = require("./socketService");
+        socketService.broadcastAll("new_call", { callId });
+
+        // Send initial greeting to the citizen
+        setTimeout(() => {
+          this._sendToCitizen(callId, {
+            type: "ai_speech",
+            text: "Namaskara! This is the 1092 Helpline. What is your emergency? (ನೀವು ಕನ್ನಡದಲ್ಲೂ ಮಾತನಾಡಬಹುದು)"
+          });
+        }, 2500);
+      }
+    } catch (e) {
+      console.error("[RTCBridge] Failed to create call record:", e.message);
+    }
+
     ws.on("message", async (rawMsg) => {
       try {
         const msg = JSON.parse(rawMsg.toString());
 
         if (msg.type === "audio_chunk") {
-          // Forward raw audio to AI for analysis
-          const audioBuffer = Buffer.from(msg.data, "base64");
-          this._processAudio(callId, audioBuffer, ws);
+          const chunk = Buffer.from(msg.data, "base64");
+          room.audioBuffer = Buffer.concat([room.audioBuffer, chunk]);
+
+          // Process buffer every 4 seconds if it has data
+          const now = Date.now();
+          if (now - room.lastProcessTime > 4000 && room.audioBuffer.length > 0) {
+            room.lastProcessTime = now;
+            this._processAudio(callId);
+          }
         } else if (msg.type === "ping") {
           ws.send(JSON.stringify({ type: "pong" }));
         }
-      } catch (e) {
-        // handle binary directly if not JSON
-      }
+      } catch (e) {}
     });
 
     ws.on("close", () => {
@@ -66,7 +85,13 @@ class RTCBridgeService {
    */
   registerAgent(callId, ws) {
     if (!this.rooms.has(callId)) {
-      this.rooms.set(callId, { citizen: null, agent: null, escalated: false, buffer: [] });
+      this.rooms.set(callId, { 
+        citizen: null, 
+        agent: null, 
+        escalated: false, 
+        audioBuffer: Buffer.alloc(0),
+        lastProcessTime: Date.now()
+      });
     }
     const room = this.rooms.get(callId);
     room.agent = ws;
@@ -76,8 +101,6 @@ class RTCBridgeService {
     ws.on("message", async (rawMsg) => {
       try {
         const msg = JSON.parse(rawMsg.toString());
-
-        // Agent speaks — send their audio to citizen
         if (msg.type === "agent_audio_chunk" && room.escalated) {
           this._sendToCitizen(callId, { type: "agent_audio", data: msg.data });
         } else if (msg.type === "ping") {
@@ -94,91 +117,75 @@ class RTCBridgeService {
   }
 
   /**
-   * Process incoming audio from citizen — send to AI, get back analysis
+   * Process accumulated audio buffer
    */
-  async _processAudio(callId, audioBuffer, citizenWs) {
+  async _processAudio(callId) {
     const room = this.rooms.get(callId);
-    if (!room) return;
+    if (!room || room.audioBuffer.length === 0) return;
 
-    // If already escalated, forward raw audio to agent (no AI)
-    if (room.escalated && room.agent && room.agent.readyState === 1) {
-      room.agent.send(JSON.stringify({
-        type: "citizen_audio",
-        data: audioBuffer.toString("base64"),
-      }));
-      return;
+    // If escalated, forward raw audio chunks to agent is handled per-chunk usually,
+    // but here we are in AI mode. If they escalated mid-buffer, we stop AI.
+    if (room.escalated) return;
+
+    console.log(`[RTCBridge] Processing ${room.audioBuffer.length} bytes for ${callId}`);
+
+    // Send the current FULL buffer to AI for analysis
+    const result = await AIBridgeService.processAudioChunk(callId, room.audioBuffer);
+    if (!result || !result.transcript) return;
+
+    // Clear buffer so we can start fresh for the next segment
+    room.audioBuffer = Buffer.alloc(0);
+
+    const { transcript, emotion, urgency, category, respond_text, tts_audio } = result;
+
+    // Push to DB
+    try {
+      const call = await prisma.call.findUnique({ where: { callId } });
+      if (call) {
+        const existing = Array.isArray(call.transcript) ? call.transcript : [];
+        
+        await prisma.call.update({
+          where: { callId },
+          data: {
+            transcript: [...existing, {
+              id: Date.now().toString(),
+              speaker: "citizen",
+              text: transcript,
+              timestamp: new Date().toISOString(),
+            }],
+            emotion: emotion || call.emotion,
+            urgency: urgency?.toUpperCase() || call.urgency,
+            category: category || call.category,
+          },
+        });
+      }
+    } catch (e) {}
+
+    // Notify agent dashboard
+    if (room.agent && room.agent.readyState === 1) {
+      room.agent.send(JSON.stringify({ type: "transcript_update", data: {
+        id: Date.now().toString(), speaker: "citizen", text: transcript,
+        timestamp: new Date().toISOString()
+      }}));
+      room.agent.send(JSON.stringify({ type: "emotion_update", data: { emotion } }));
+      room.agent.send(JSON.stringify({ type: "confidence_update", data: { confidence: 0.9, reason: `Urgency: ${urgency}` } }));
     }
 
-    // Otherwise send to AI service for STT + analysis
-    const result = await AIBridgeService.processAudioChunk(callId, audioBuffer);
-    if (!result) return;
-
-    const { transcript, emotion, urgency, confidence, intent, location, issue,
-            suggested_actions, prank_score, tts_audio } = result;
-
-    // Push transcript to DB
-    if (transcript) {
-      try {
-        const call = await prisma.call.findUnique({ where: { callId } });
-        if (call) {
-          const existing = Array.isArray(call.transcript) ? call.transcript : [];
-          await prisma.call.update({
-            where: { callId },
-            data: {
-              transcript: [...existing, {
-                id: Date.now().toString(),
-                speaker: "citizen",
-                text: transcript,
-                timestamp: new Date().toISOString(),
-              }],
-              emotion: emotion || call.emotion,
-              urgency: urgency || call.urgency,
-              confidence: confidence ?? call.confidence,
-              intent: intent || call.intent,
-              location: location || call.location,
-              issue: issue || call.issue,
-              suggestedActions: suggested_actions || call.suggestedActions,
-            },
-          });
-        }
-      } catch (e) {
-        console.error("[RTCBridge] DB update error:", e.message);
-      }
-
-      // Notify agent dashboard
-      if (room.agent && room.agent.readyState === 1) {
-        room.agent.send(JSON.stringify({ type: "transcript_update", data: {
-          id: Date.now().toString(), speaker: "citizen", text: transcript,
-          timestamp: new Date().toISOString()
-        }}));
-        room.agent.send(JSON.stringify({ type: "emotion_update", data: { emotion } }));
-        room.agent.send(JSON.stringify({ type: "confidence_update", data: { confidence, reason: `Urgency: ${urgency}` } }));
-        room.agent.send(JSON.stringify({ type: "ai_insight_update", data: { intent, location, issue, suggestedActions: suggested_actions } }));
-      }
-
-      // Auto-escalate if AI determines HIGH urgency or LOW confidence
-      if ((urgency === "HIGH" || confidence < 0.4) && !room.escalated) {
-        this.escalate(callId, "auto");
-      }
+    // Send AI TTS or text-to-speech instructions back to citizen
+    if (respond_text) {
+      this._sendToCitizen(callId, { type: "ai_speech", text: respond_text });
     }
-
-    // Send AI TTS audio back to citizen if available
+    
     if (tts_audio) {
       this._sendToCitizen(callId, { type: "ai_audio", data: tts_audio });
     }
   }
 
-  /**
-   * Escalate a call — switch from AI mode to agent bridge mode
-   */
   async escalate(callId, reason = "manual") {
     const room = this.rooms.get(callId);
     if (!room || room.escalated) return;
 
     room.escalated = true;
-    console.log(`[RTCBridge] Call ${callId} escalated (${reason})`);
-
-    // Update DB
     try {
       await prisma.call.update({
         where: { callId },
@@ -186,19 +193,14 @@ class RTCBridgeService {
       });
     } catch (e) {}
 
-    // Notify citizen: AI stepping back
     this._sendToCitizen(callId, {
       type: "ai_audio",
-      data: null, // frontend will play a hold tone
-      message: "Connecting you to a human specialist. Please hold.",
+      data: null,
+      message: "Connecting you to a human specialist.",
     });
 
-    // Notify agent: escalation required
     if (room.agent && room.agent.readyState === 1) {
-      room.agent.send(JSON.stringify({
-        type: "escalation_required",
-        data: { callId, reason },
-      }));
+      room.agent.send(JSON.stringify({ type: "escalation_required", data: { callId, reason } }));
     }
   }
 
@@ -214,4 +216,4 @@ class RTCBridgeService {
   }
 }
 
-module.exports = new RTCBridgeService(); // Singleton
+module.exports = new RTCBridgeService();

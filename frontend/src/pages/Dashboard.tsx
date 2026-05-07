@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useCallStore } from "@/store/callStore";
-import { Phone, TrendingUp, Users, Activity, ArrowUpRight } from "lucide-react";
+import { Phone, PhoneOff, TrendingUp, Users, Activity, ArrowUpRight } from "lucide-react";
 import StatusBadge from "@/components/common/StatusBadge";
 import ConfidenceBar from "@/components/common/ConfidenceBar";
 import EmotionIndicator from "@/components/common/EmotionIndicator";
@@ -79,9 +79,18 @@ export default function Dashboard() {
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       className="p-6 space-y-6"
     >
-      <div>
-        <h2 className="text-xl font-bold text-foreground font-display tracking-tight">Dashboard</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">Real-time overview of the 1092 Helpline</p>
+      <div className="flex items-end justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground font-display tracking-tight">System Overview</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Real-time metrics for the 1092 Helpline</p>
+        </div>
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-1">Total Lifetime Calls</span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-3xl font-black text-foreground font-display tracking-tighter">14,238</span>
+            <div className="w-2 h-2 rounded-full bg-success animate-pulse mb-1" />
+          </div>
+        </div>
       </div>
 
       {/* Stats Row */}
@@ -136,14 +145,29 @@ export default function Dashboard() {
               <span className="text-sm text-muted-foreground font-mono w-16 text-right tabular-nums">
                 {formatDuration(call.duration)}
               </span>
-              <PremiumButton
-                variant="primary"
-                size="sm"
-                onClick={() => navigate(`/call/${call.callId}`)}
-              >
-                Take Call
-                <ArrowUpRight className="w-3.5 h-3.5 opacity-70" />
-              </PremiumButton>
+              <div className="flex items-center gap-2">
+                <PremiumButton
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigate(`/call/${call.callId}`)}
+                >
+                  Take Call
+                  <ArrowUpRight className="w-3.5 h-3.5 opacity-70" />
+                </PremiumButton>
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if(confirm("End this call?")) {
+                       await dashboardAPI.endCall(call.callId);
+                       fetchDashboardData();
+                    }
+                  }}
+                  className="p-2.5 rounded-xl border border-destructive/20 text-destructive hover:bg-destructive/10 transition-all"
+                  title="End Call"
+                >
+                  <PhoneOff className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </motion.div>
           ))}
           {activeCalls.length === 0 && (
