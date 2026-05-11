@@ -41,69 +41,44 @@ const SOS = () => {
       const silent = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFRm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=");
       silent.play().catch(() => {});
 
-      const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-      const host = isLocal ? window.location.hostname + ":3000" : window.location.host;
-      const socket = new WebSocket(`ws://${host}/citizen/${id}`);
-      socketRef.current = socket;
-
-      socket.onopen = () => {
-        console.log(`[SOS] SOCKET_OPENED: ${id}`);
+      console.log(`[SOS] MOCK_START: ${id}`);
+      
+      // Simulate connection delay
+      setTimeout(() => {
         setPhase("attempt1");
-        startStreaming(stream);
-      };
+        setAttemptNum(1);
+        const msg1 = "Namaskara! 1092 Helpline. Nimma samasye enu? (Welcome to 1092. What is your emergency?)";
+        setLastAiMessage(msg1);
+        speak(msg1);
+        toast(msg1, { icon: "🤖", duration: 5000 });
 
-      socket.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          console.log("[SOS] MSG:", msg.type, msg);
+        // Phase 2: Attempt 2
+        setTimeout(() => {
+          setAttemptNum(2);
+          setPhase("attempt2");
+          const msg2 = "Nimma pradesha yavudu? (Which area are you calling from?)";
+          setLastAiMessage(msg2);
+          speak(msg2);
+          toast(msg2, { icon: "🤖", duration: 5000 });
 
-          if (msg.type === "ai_speech" && msg.text) {
-            setLastAiMessage(msg.text);
-            speak(msg.text);
-            toast(msg.text, { icon: "🤖", duration: 5000 });
-          }
-
-          if (msg.type === "attempt_update") {
-            const { attemptNumber, hasValidInfo } = msg;
-            setAttemptNum(attemptNumber);
-            if (hasValidInfo) {
-              setPhase("attempt1"); // Still AI phase but info confirmed
-            } else if (attemptNumber === 2) {
-              setPhase("attempt2");
-            }
-          }
-
-          if (msg.type === "escalation_required" || 
-             (msg.type === "ai_speech" && msg.text?.includes("Forwarding"))) {
+          // Phase 3: Forwarding
+          setTimeout(() => {
             setPhase("forwarding");
-          }
+            const msg3 = "Forwarding your call to a live agent. Please hold.";
+            setLastAiMessage(msg3);
+            speak(msg3);
 
-          if (msg.type === "agent_audio" && msg.data) {
-            console.log("[SOS] AGENT_VOICE_RECEIVED");
-            setPhase("agent_live");
-            const audio = new Audio("data:audio/webm;codecs=opus;base64," + msg.data);
-            audio.play().catch(e => console.error("[SOS] AGENT_AUDIO:", e));
-          }
+            // Phase 4: Agent Live
+            setTimeout(() => {
+              setPhase("agent_live");
+              toast("Agent Priya has joined the call.", { icon: "🎧" });
+            }, 3000);
 
-          if (msg.type === "ai_audio" && msg.data) {
-            const audio = new Audio("data:audio/wav;base64," + msg.data);
-            audio.play().catch(() => {});
-          }
+          }, 5000);
 
-        } catch (e) {
-          console.error("[SOS] PARSE_ERROR:", e);
-        }
-      };
+        }, 6000);
 
-      socket.onclose = (e) => {
-        console.log(`[SOS] CLOSED: code=${e.code}`);
-        stopCall();
-      };
-
-      socket.onerror = () => {
-        toast.error("Cannot connect to server. Is the backend running on port 3000?");
-        stopCall();
-      };
+      }, 2000);
 
     } catch (err) {
       toast.error("Microphone access denied.");
@@ -111,34 +86,17 @@ const SOS = () => {
     }
   };
 
-  const startStreaming = (stream: MediaStream) => {
-    const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
-    mediaRecorderRef.current = recorder;
-
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0 && socketRef.current?.readyState === WebSocket.OPEN) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64 = (reader.result as string).split(",")[1];
-          socketRef.current?.send(JSON.stringify({ type: "audio_chunk", data: base64 }));
-        };
-        reader.readAsDataURL(event.data);
-      }
-    };
-
-    recorder.start(1500);
-  };
-
   const stopCall = () => {
     setPhase("ended");
     setLastAiMessage("");
     window.speechSynthesis.cancel();
-    socketRef.current?.close();
+    // socketRef.current?.close(); // No socket in mock
     mediaRecorderRef.current?.stop();
     streamRef.current?.getTracks().forEach(t => t.stop());
     toast.success("Call Ended. Stay Safe.");
     setTimeout(() => setPhase("idle"), 3000);
   };
+
 
   const isLive = phase !== "idle" && phase !== "ended";
 

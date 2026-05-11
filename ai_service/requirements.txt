@@ -1,9 +1,0 @@
-fastapi
-uvicorn
-httpx
-pydantic
-python-dotenv
-pydub
-numpy
-scipy
-google-generativeai

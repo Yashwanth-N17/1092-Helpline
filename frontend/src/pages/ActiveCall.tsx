@@ -109,11 +109,37 @@ export default function ActiveCall() {
     // Fetch initial call data from API
     callAPI.getCall(callId || "CALL-0001").then(res => {
       setCurrentCall(res.data);
+      
+      // Simulation: Periodically add new transcript lines for the mock experience
+      const mockLines = [
+        { speaker: "citizen" as const, text: "Wait, I also have a problem with the electricity near my house." },
+        { speaker: "ai" as const, text: "I understand. I am logging the power outage issue as well." },
+        { speaker: "citizen" as const, text: "Thank you. When will it be fixed?" },
+        { speaker: "ai" as const, text: "The department has been notified. Expected resolution within 4 hours." }
+      ];
+      
+      let lineIdx = 0;
+      const simulationInterval = setInterval(() => {
+        if (lineIdx < mockLines.length) {
+          appendTranscript({
+            id: Date.now().toString(),
+            ...mockLines[lineIdx],
+            timestamp: new Date().toISOString()
+          });
+          lineIdx++;
+        } else {
+          clearInterval(simulationInterval);
+        }
+      }, 5000);
+
+      return () => clearInterval(simulationInterval);
+
     }).catch(() => {
       // Fallback to initial mock if API fails
       const call = generateMockCall({ callId: callId || "CALL-0001" });
       setCurrentCall(call);
     });
+
 
     return () => {
       unsubTranscript();

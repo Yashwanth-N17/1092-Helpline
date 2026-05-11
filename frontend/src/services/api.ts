@@ -1,84 +1,125 @@
-import axios from "axios";
-import { API_URL, TOKEN_KEY } from "@/utils/constants";
-import toast from "react-hot-toast";
+import { 
+  mockDashboardStats, 
+  mockAnalyticsData, 
+  generateMockActiveCalls, 
+  generateMockRecentCalls, 
+  generateMockCall,
+  generateMockHistoryCalls
+} from "@/utils/mockData";
+import { TOKEN_KEY, AGENT_KEY } from "@/utils/constants";
 
-const api = axios.create({
-  baseURL: API_URL,
-  timeout: 10000,
-  headers: { "Content-Type": "application/json" },
-});
+/** 
+ * Mock API service to remove backend dependency.
+ * All calls return Promise.resolve with mock data.
+ */
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-api.interceptors.response.use(
-  (res) => res,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem(TOKEN_KEY);
-      window.location.href = "/login";
-    } else if (error.response?.status >= 500) {
-      toast.error("Server error. Please try again.");
-    } else if (!error.response) {
-      toast.error("Server unreachable. Check your connection.");
-    }
-    return Promise.reject(error);
-  }
-);
+const delay = (ms = 500) => new Promise(resolve => setTimeout(resolve, ms));
 
 /** Auth API */
 export const authAPI = {
-  login: (agentId: string, password: string) =>
-    api.post("/auth/login", { agentId, password }),
-  logout: () => api.post("/auth/logout"),
+  login: async (agentId: string, _password: string) => {
+    await delay();
+    const token = "mock-jwt-token";
+    const agent = { id: agentId, name: agentId === "admin" ? "Super Admin" : "Agent " + agentId, role: "agent" };
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(AGENT_KEY, JSON.stringify(agent));
+    return { data: { token, agent } };
+  },
+  logout: async () => {
+    await delay();
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(AGENT_KEY);
+    return { data: { success: true } };
+  },
 };
 
 /** Dashboard API */
 export const dashboardAPI = {
-  getStats: () => api.get("/dashboard/stats"),
-  getActiveCalls: () => api.get("/calls/active"),
-  getRecentCalls: (limit = 10) => api.get(`/calls/recent?limit=${limit}`),
-  endCall: (callId: string) => api.post(`/calls/${callId}/end`),
+  getStats: async () => {
+    await delay();
+    return { data: mockDashboardStats };
+  },
+  getActiveCalls: async () => {
+    await delay();
+    return { data: generateMockActiveCalls() };
+  },
+  getRecentCalls: async (limit = 10) => {
+    await delay();
+    return { data: generateMockRecentCalls(limit) };
+  },
+  endCall: async (callId: string) => {
+    await delay();
+    return { data: { success: true, callId } };
+  },
 };
 
 /** Call API */
 export const callAPI = {
-  getCall: (callId: string) => api.get(`/calls/${callId}`),
-  updateInterpretation: (callId: string, data: Record<string, string>) =>
-    api.patch(`/calls/${callId}/interpret`, data),
-  submitVerification: (callId: string, result: string) =>
-    api.post(`/calls/${callId}/verify`, { result }),
-  escalateCall: (callId: string) => api.post(`/calls/${callId}/escalate`),
-  endCall: (callId: string) => api.post(`/calls/${callId}/end`),
-  getCallHistory: (filters: Record<string, unknown>) =>
-    api.get("/calls/history", { params: filters }),
-  getCallDetail: (callId: string) => api.get(`/calls/${callId}/detail`),
+  getCall: async (callId: string) => {
+    await delay();
+    return { data: generateMockCall({ callId }) };
+  },
+  updateInterpretation: async (callId: string, data: Record<string, string>) => {
+    await delay();
+    return { data: { success: true, callId, updated: data } };
+  },
+  submitVerification: async (callId: string, result: string) => {
+    await delay();
+    return { data: { success: true, callId, result } };
+  },
+  escalateCall: async (callId: string) => {
+    await delay();
+    return { data: { success: true, callId, status: "escalated" } };
+  },
+  endCall: async (callId: string) => {
+    await delay();
+    return { data: { success: true, callId, status: "resolved" } };
+  },
+  getCallHistory: async (_filters: Record<string, unknown>) => {
+    await delay();
+    return { data: generateMockHistoryCalls(20) };
+  },
+  getCallDetail: async (callId: string) => {
+    await delay();
+    return { data: generateMockCall({ callId }) };
+  },
 };
 
 /** Analytics API */
 export const analyticsAPI = {
-  getOverview: (from: string, to: string) =>
-    api.get("/analytics/overview", { params: { from, to } }),
-  getEmotions: (from: string, to: string) =>
-    api.get("/analytics/emotions", { params: { from, to } }),
-  getLanguages: (from: string, to: string) =>
-    api.get("/analytics/languages", { params: { from, to } }),
-  getConfidence: (from: string, to: string) =>
-    api.get("/analytics/confidence", { params: { from, to } }),
-  getEscalations: (from: string, to: string) =>
-    api.get("/analytics/escalations", { params: { from, to } }),
+  getOverview: async (_from: string, _to: string) => {
+    await delay();
+    return { data: mockAnalyticsData };
+  },
+  getEmotions: async (_from: string, _to: string) => {
+    await delay();
+    return { data: mockAnalyticsData.emotionDistribution };
+  },
+  getLanguages: async (_from: string, _to: string) => {
+    await delay();
+    return { data: mockAnalyticsData.languageDistribution };
+  },
+  getConfidence: async (_from: string, _to: string) => {
+    await delay();
+    return { data: mockAnalyticsData.confidenceDistribution };
+  },
+  getEscalations: async (_from: string, _to: string) => {
+    await delay();
+    return { data: mockAnalyticsData.escalationReasons };
+  },
 };
 
 /** Agent API */
 export const agentAPI = {
-  getSettings: () => api.get("/agent/settings"),
-  updateSettings: (data: Record<string, unknown>) =>
-    api.patch("/agent/settings", data),
+  getSettings: async () => {
+    await delay();
+    return { data: { theme: "dark", language: "English", notifications: true } };
+  },
+  updateSettings: async (data: Record<string, unknown>) => {
+    await delay();
+    return { data: { success: true, updated: data } };
+  },
 };
 
-export default api;
+export default { authAPI, dashboardAPI, callAPI, analyticsAPI, agentAPI };
+
