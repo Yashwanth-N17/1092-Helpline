@@ -1,37 +1,160 @@
-from typing import List, Dict, Any
+from typing import Dict, Any
 from app.core.config import settings
 
-# In a real environment, we would use:
-# from transformers import pipeline
-# classifier = pipeline("zero-shot-classification", model=settings.DEBERTA_MODEL_NAME)
 
 class DebertaService:
     def __init__(self):
-        # Initialize the model here if loading locally
         self.model_name = settings.DEBERTA_MODEL_NAME
-        self.labels = ["Emergency", "Enquiry", "Harassment", "Infrastructure", "Medical"]
-        self.severity_labels = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        self.labels = [
+            "Emergency",
+            "Enquiry",
+            "Harassment",
+            "Infrastructure",
+            "Medical"
+        ]
+
+        self.severity_labels = [
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+        ]
 
     async def analyze_text(self, text: str) -> Dict[str, Any]:
         """
-        Perform AI Analysis using DeBERTa Zero-shot
+        Simple keyword-based emergency classification
         """
-        # Mocking the classification for now
-        # results = classifier(text, candidate_labels=self.labels)
-        
-        # Simulated result
-        return {
-            "top_label": "Infrastructure",
-            "scores": {"Infrastructure": 0.85, "Emergency": 0.1, "Enquiry": 0.05},
-            "intent": "Reporting a water leakage",
-            "confidence": 0.92
-        }
+
+        text_lower = text.lower()
+
+        if any(word in text_lower for word in [
+            "robbery",
+            "murder",
+            "attack",
+            "kidnap",
+            "fight",
+            "violence"
+        ]):
+            return {
+                "top_label": "Emergency",
+                "scores": {
+                    "Emergency": 0.95,
+                    "Infrastructure": 0.02,
+                    "Enquiry": 0.03
+                },
+                "intent": "Police Emergency",
+                "confidence": 0.95
+            }
+
+        elif any(word in text_lower for word in [
+            "harassment",
+            "stalking",
+            "abuse"
+        ]):
+            return {
+                "top_label": "Harassment",
+                "scores": {
+                    "Harassment": 0.94,
+                    "Emergency": 0.04,
+                    "Enquiry": 0.02
+                },
+                "intent": "Women Safety",
+                "confidence": 0.94
+            }
+
+        elif any(word in text_lower for word in [
+            "fire",
+            "burning",
+            "smoke"
+        ]):
+            return {
+                "top_label": "Emergency",
+                "scores": {
+                    "Emergency": 0.96,
+                    "Infrastructure": 0.02,
+                    "Enquiry": 0.02
+                },
+                "intent": "Fire Emergency",
+                "confidence": 0.96
+            }
+
+        elif any(word in text_lower for word in [
+            "ambulance",
+            "medical",
+            "accident",
+            "injured"
+        ]):
+            return {
+                "top_label": "Medical",
+                "scores": {
+                    "Medical": 0.97,
+                    "Emergency": 0.02,
+                    "Enquiry": 0.01
+                },
+                "intent": "Medical Emergency",
+                "confidence": 0.97
+            }
+
+        elif any(word in text_lower for word in [
+            "water leakage",
+            "road damage",
+            "garbage"
+        ]):
+            return {
+                "top_label": "Infrastructure",
+                "scores": {
+                    "Infrastructure": 0.92,
+                    "Emergency": 0.05,
+                    "Enquiry": 0.03
+                },
+                "intent": "Infrastructure Complaint",
+                "confidence": 0.92
+            }
+
+        else:
+            return {
+                "top_label": "Enquiry",
+                "scores": {
+                    "Enquiry": 0.85,
+                    "Emergency": 0.10,
+                    "Infrastructure": 0.05
+                },
+                "intent": "General Enquiry",
+                "confidence": 0.85
+            }
 
     async def detect_severity(self, text: str) -> str:
         """
         Detect severity from LOW to CRITICAL
         """
-        # Simulated result
-        return "MEDIUM"
+
+        text_lower = text.lower()
+
+        if any(word in text_lower for word in [
+            "murder",
+            "fire",
+            "kidnap",
+            "terror",
+            "gun"
+        ]):
+            return "CRITICAL"
+
+        elif any(word in text_lower for word in [
+            "robbery",
+            "attack",
+            "accident",
+            "injured"
+        ]):
+            return "HIGH"
+
+        elif any(word in text_lower for word in [
+            "harassment",
+            "stalking",
+            "abuse"
+        ]):
+            return "MEDIUM"
+
+        return "LOW"
+
 
 deberta_service = DebertaService()
