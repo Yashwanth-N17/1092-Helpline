@@ -1,6 +1,6 @@
 # 1092 Helpline - AI Service Layer
 
-This is the intelligence layer of the 1092 Helpline, built with **FastAPI** and powered by **Groq AI**. It handles computationally intensive AI tasks that require a Python environment.
+This is the intelligence layer of the 1092 Helpline, built with **FastAPI** and powered by **Groq AI, Google Gemini, and HuggingFace DeBERTa**. It handles computationally intensive AI tasks, classifications, and responses.
 
 ---
 
@@ -10,30 +10,14 @@ This is the intelligence layer of the 1092 Helpline, built with **FastAPI** and 
   - **AI Analysis**: Classifies citizen intent and emergency type
   - **Severity Detection**: Detects severity from LOW to CRITICAL
 
-- **DeepSeek Reasoner**
-  - **Case Summary Generation**: Generates concise summaries from transcripts
-### DeBERTa v3 Zeroshot
-- **AI Analysis**
-  - Classifies citizen complaint intent
-  - Provides detailed AI-based analysis
+- **Google Gemini 2.5 Flash**
+  - **AI Reply Generator**: Generates context-aware, calming, safe responses for the caller.
 
-- **Severity Detection**
-  - Detects issue severity levels:
-    - LOW
-    - MEDIUM
-    - HIGH
-    - CRITICAL
+- **Groq Llama 3.3 70B**
+  - **Case Summary Generation**: Generates concise, factual summaries from call transcripts for officer dashboards.
 
-### Groq AI Integration
-- **Case Summary Generation**
-  - Generates concise summaries from call transcripts
-
-- **AI Complaint Understanding**
-  - Understands emergency situations
-  - Extracts actionable complaint information
-
-- **Fast Inference**
-  - Powered by Groq ultra-fast LPU inference
+- **Unified Pipeline**
+  - **Pipeline API**: Processes severity, reply, and summary concurrently for ultra-fast latency.
 
 ---
 
@@ -42,30 +26,13 @@ This is the intelligence layer of the 1092 Helpline, built with **FastAPI** and 
 - **Framework**: FastAPI
 - **Language**: Python 3.9+
 - **AI Models**:
-  - DeBERTa v3
-  - Groq Llama 3.3 70B
-- **Libraries**:
-  - Transformers
-  - Torch
-  - Pydantic
-  - HTTPX
+  - HuggingFace `cross-encoder/nli-deberta-v3-small`
+  - Groq `llama-3.3-70b-versatile`
+  - Google Gemini `gemini-2.5-flash`
+- **Libraries**: Transformers, Torch, Pydantic, HTTPX, Google Generative AI
 
 ---
 
----
-
-## Getting Started
-
-### Prerequisites
-
-- Python installed
-- Virtual environment (recommended)
-
----
-
-### Installation
-
-1. Navigate to directory:
 ## Installation
 
 ### 1. Navigate to the directory
@@ -74,33 +41,19 @@ This is the intelligence layer of the 1092 Helpline, built with **FastAPI** and 
 cd ai_service
 ```
 
-2. Create virtual environment:
 ### 2. Create and activate virtual environment
 
-```bash
-python -m venv venv
-```
-
-3. Activate environment:
-
-Windows:
-
-```bash
-venv\Scripts\activate
-```
-
-Linux/Mac:
 #### Windows
 ```bash
+python -m venv venv
 venv\Scripts\activate
 ```
 
 #### Linux / Mac
 ```bash
+python3 -m venv venv
 source venv/bin/activate
 ```
-
----
 
 ### 3. Install dependencies
 
@@ -108,271 +61,71 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
----
-
 ### 4. Configure Environment Variables
 
 Create `.env` file:
 
 ```env
-GROQ_API_KEY=your_groq_api_key
-GROQ_MODEL_NAME=llama-3.3-70b-versatile
+PROJECT_NAME="1092 Helpline AI Service"
+VERSION="1.0.0"
+
+# DeBERTa Model
+DEBERTA_MODEL_NAME="cross-encoder/nli-deberta-v3-small"
+
+# Groq Configuration
+GROQ_API_KEY="your_groq_api_key"
+GROQ_BASE_URL="https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL_NAME="llama-3.3-70b-versatile"
+
+# Gemini Configuration
+GEMINI_API_KEY="your_gemini_api_key"
+GEMINI_MODEL="gemini-2.5-flash"
 ```
 
 ---
 
 ## Running the Service
 
-```bash
-source venv/bin/activate
-```
-
-4. Install dependencies:
+Run the server:
 
 ```bash
-pip install -r requirements.txt
+python -m uvicorn app.main:app --reload --port 8001
 ```
 
-5. Environment setup:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with API keys if required.
-
----
-
-## Running the Service
-
-Run:
-
-```bash
-python -m uvicorn app.main:app --reload
-```
-
-Service will run at:
-
-```text
-http://127.0.0.1:8000
-```
-
-Swagger docs:
-
-```text
-http://127.0.0.1:8000/docs
-```
+- **Base URL**: `http://127.0.0.1:8001`
+- **Swagger Docs**: `http://127.0.0.1:8001/docs`
 
 ---
 
 ## API Endpoints
 
-### 1. AI Analysis
+### 1. Unified Pipeline (Day 2 Final Target)
 
-**Endpoint**
-
-```http
-POST /api/v1/analysis/analyze
-```
+**Endpoint**: `POST /api/v1/pipeline/analyze`
 
 **Request**
-
 ```json
 {
-  "text": "There is a robbery happening near MG Road Bangalore send police immediately"
+  "text": "My father hit me"
 }
 ```
 
 **Response**
-
 ```json
 {
-  "top_label": "Emergency",
-  "scores": {
-    "Emergency": 0.95,
-    "Infrastructure": 0.02,
-    "Enquiry": 0.03
-  },
-  "intent": "Police Emergency",
-  "confidence": 0.95
+  "severity": "CRITICAL",
+  "reply": "I have noted your emergency. Help is being dispatched immediately, please stay safe and on the line.",
+  "summary": "Citizen reported domestic violence from father."
 }
 ```
 
----
+### 2. Individual Analysis Tools
 
-### 2. Severity Detection
+**Endpoint**: `POST /api/v1/analysis/analyze`
+**Endpoint**: `POST /api/v1/analysis/severity`
+**Endpoint**: `POST /api/v1/summary/summarize`
 
-**Endpoint**
-
-```http
-POST /api/v1/analysis/severity
-```
-
-**Request**
-
-## API URLs
-
-### Base URL
-```txt
-http://localhost:8001
-```
-
-### Swagger Documentation
-```txt
-http://localhost:8001/docs
-```
-
-### OpenAPI JSON
-```txt
-http://localhost:8001/api/v1/openapi.json
-```
-
----
-
-# API Request Examples
-
----
-
-## 1. AI Analysis
-
-### Endpoint
-```http
-POST /api/v1/analysis/analyze
-```
-
-### Request
-
-```json
-{
-  "text": "There is a murder happening with guns near MG Road"
-}
-```
-
-**Response**
-
-```json
-{
-  "severity": "CRITICAL"
-}
-```
-
----
-
-### 3. Case Summary Generation
-
-**Endpoint**
-
-### Response
-
-```json
-{
-  "success": true,
-  "summary": "Citizen reported a major water pipeline burst near Rajajinagar park requiring immediate repair."
-}
-```
-
----
-
-## 2. Severity Detection
-
-### Endpoint
-```http
-POST /api/v1/analysis/severity
-```
-
-### Request
-
-```json
-{
-  "text": "There is a fire spreading rapidly inside the apartment building."
-}
-```
-
-### Response
-
-```json
-{
-  "severity": "CRITICAL"
-}
-```
-
----
-
-## 3. Case Summary
-
-### Endpoint
-```http
-POST /api/v1/summary/summarize
-```
-
-**Request**
-### Request
-
-```json
-{
-  "transcript": "Citizen: Hello, there is a fire in the building. AI: What is your location? Citizen: MG Road Apartment 402."
-}
-```
-
-**Response**
-
-```json
-{
-  "summary": "Emergency fire report at MG Road Apartment 402. Occupants may be trapped."
-}
-```
-
----
-
-## Notes
-
-Current implementation includes:
-
-- Emergency intent classification
-- Severity detection
-- AI analysis endpoint
-- Summary generation endpoint
-- Swagger API testing support
-
-Future integration:
-
-- Real DeBERTa inference
-- Telephony integration (Twilio/Exotel alternative)
-- Live AI-human escalation routing
-### Response
-
-```json
-{
-  "success": true,
-  "summary": "Emergency fire reported at MG Road Apartment 402. Immediate assistance required."
-}
-```
-
----
-
-# Project Structure
-
-```txt
-ai_service/
-│
-├── app/
-│   ├── api/
-│   ├── core/
-│   ├── services/
-│   └── main.py
-│
-├── requirements.txt
-├── .env
-└── README.md
-```
-
----
-
-# Groq Model Used
-
-```txt
-llama-3.3-70b-versatile
-```
+*(See Swagger docs for more details on individual routes)*
 
 ---
 

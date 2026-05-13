@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Phone,
   PhoneOff,
@@ -34,159 +34,118 @@ const SOS = () => {
   const [transcript, setTranscript] = useState("");
   const [aiResult, setAiResult] = useState<any>(null);
 
+  const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const recognitionRef = useRef<any>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
-  const speak = (text: string) => {
-    if (!("speechSynthesis" in window)) return;
+  // Send WebSocket Keep-Alive Pings
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: "ping" }));
+      }
+    }, 25000);
+    return () => clearInterval(interval);
+  }, []);
 
-    window.speechSynthesis.cancel();
-
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = text.match(/[\u0C80-\u0CFF]/) ? "kn-IN" : "en-US";
-    utter.rate = 1.0;
-
-    utter.onstart = () => console.log("[TTS] Speaking:", text);
-    utter.onerror = (e) => console.error("[TTS] Error:", e);
-
-    window.speechSynthesis.speak(utter);
-  };
-
-  const analyzeSpeech = async (text: string) => {
+  const playBase64Audio = async (b64: string) => {
     try {
-      const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/analysis/analyze",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ text }),
-        }
-      );
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
+      }
+      const audioCtx = audioCtxRef.current;
 
-      const data = await response.json();
-      setAiResult(data);
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
-      toast.success(`Detected: ${data.top_label}`);
-      console.log("[AI RESULT]", data);
-    } catch (error) {
-      console.error("[AI ERROR]", error);
-      toast.error("AI service not reachable");
+      const decoded = await audioCtx.decodeAudioData(bytes.buffer);
+      const src = audioCtx.createBufferSource();
+      src.buffer = decoded;
+      src.connect(audioCtx.destination);
+      src.start();
+    } catch (err) {
+      console.error("[Audio] Failed to play:", err);
     }
-  };
-
-  const startListening = () => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      toast.error("Speech recognition is not supported in this browser");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-
-    recognition.lang = "en-IN";
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onstart = () => {
-      console.log("[STT] Listening...");
-      toast("Listening now. Please speak.", { icon: "🎙️" });
-    };
-
-    recognition.onresult = async (event: any) => {
-      const text = event.results[0][0].transcript;
-
-      console.log("[STT] User said:", text);
-
-      setTranscript(text);
-      await analyzeSpeech(text);
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("[STT ERROR]", event.error);
-      toast.error(`Speech error: ${event.error}`);
-    };
-
-    recognition.onend = () => {
-      console.log("[STT] Listening stopped");
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
   };
 
   const startCall = async () => {
+    if (phase !== "idle" && phase !== "ended") {
+      stopCall();
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
       const id = "CALL-" + Math.floor(1000 + Math.random() * 9000);
-
       setCallId(id);
       setPhase("connecting");
-      setAttemptNum(0);
-      setLastAiMessage("");
+      setAttemptNum(1);
+      setLastAiMessage("Connecting to emergency server...");
       setTranscript("");
       setAiResult(null);
 
-      console.log(`[SOS] MOCK_START: ${id}`);
+      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+      // Ensure backend URL is correctly targeted
+      const backendUrl = window.location.hostname === "localhost" ? "localhost:3000" : window.location.host;
+      const WS_URL = `${wsProtocol}://${backendUrl}/citizen/${id}`;
+      
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
 
-      setTimeout(() => {
+      ws.onopen = () => {
+        console.log("[WS] Connected");
         setPhase("attempt1");
-        setAttemptNum(1);
+        setLastAiMessage("AI is listening. Please speak clearly about your emergency.");
+        toast.success("Connected to Helpline");
 
-        const msg1 =
-          "Namaskara! 1092 Helpline. What is your emergency?";
-
-        setLastAiMessage(msg1);
-        speak(msg1);
-
-        toast(msg1, {
-          icon: "🤖",
-          duration: 5000,
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: "audio/webm;codecs=opus",
         });
+        mediaRecorderRef.current = mediaRecorder;
 
-        setTimeout(() => {
-          startListening();
-        }, 4000);
+        mediaRecorder.ondataavailable = async (e) => {
+          if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
+            const buf = await e.data.arrayBuffer();
+            const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+            ws.send(JSON.stringify({ type: "audio_chunk", data: b64 }));
+          }
+        };
+        mediaRecorder.start(2000); // chunk every 2 seconds
+      };
 
-        setTimeout(() => {
-          setAttemptNum(2);
-          setPhase("attempt2");
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
 
-          const msg2 = "Which area are you calling from?";
+        if (msg.type === "ai_audio" && msg.data) {
+          playBase64Audio(msg.data);
+          setLastAiMessage("AI is responding...");
+          setAttemptNum((prev) => (prev < 2 ? prev + 1 : 2));
+        } else if (msg.type === "agent_audio" && msg.data) {
+          playBase64Audio(msg.data);
+          setPhase("agent_live");
+          setLastAiMessage("A live agent has joined your call.");
+        } else if (msg.type === "pong") {
+          // Keep-alive OK
+        }
+      };
 
-          setLastAiMessage(msg2);
-          speak(msg2);
+      ws.onclose = () => {
+        console.log("[WS] Closed");
+        if (phase !== "ended") {
+          stopCall();
+        }
+      };
 
-          toast(msg2, {
-            icon: "🤖",
-            duration: 5000,
-          });
-
-          setTimeout(() => {
-            setPhase("forwarding");
-
-            const msg3 =
-              "Forwarding your call to a live agent. Please hold.";
-
-            setLastAiMessage(msg3);
-            speak(msg3);
-
-            setTimeout(() => {
-              setPhase("agent_live");
-
-              toast("Agent Priya has joined the call.", {
-                icon: "🎧",
-              });
-            }, 3000);
-          }, 5000);
-        }, 10000);
-      }, 2000);
+      ws.onerror = (error) => {
+        console.error("[WS] Error", error);
+        toast.error("WebSocket connection error");
+        stopCall();
+      };
     } catch (error) {
       toast.error("Microphone access denied");
       console.error(error);
@@ -197,10 +156,16 @@ const SOS = () => {
     setPhase("ended");
     setLastAiMessage("");
 
-    window.speechSynthesis.cancel();
-    recognitionRef.current?.stop();
-    mediaRecorderRef.current?.stop();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+
     streamRef.current?.getTracks().forEach((track) => track.stop());
+
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
 
     toast.success("Call ended. Stay safe.");
 

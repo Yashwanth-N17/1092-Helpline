@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1/chat/completions"
     GROQ_MODEL_NAME: str = "llama-3.3-70b-versatile"
+    
+    # Gemini Configuration
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
 
     class Config:
         env_file = ".env"

@@ -20,3 +20,13 @@ exports.summarizeCase = async (req, res) => {
     res.status(500).json({ error: `AI Service Error: ${error.message}` });
   }
 };
+
+exports.analyzePipeline = async (req, res) => {
+  try {
+    const { text } = req.body;
+    const pipelineData = await aiServiceClient.analyzePipeline(text);
+    res.json(pipelineData);
+  } catch (error) {
+    res.status(500).json({ error: `AI Service Error: ${error.message}` });
+  }
+};
