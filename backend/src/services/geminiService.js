@@ -12,7 +12,7 @@ class GeminiService {
     }
 
     try {
-      const model = this.genAI.getGenerativeModel({ model: "gemini-pro" }); // Using gemini-pro as placeholder for 2.5 Flash
+      const model = this.genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
       const prompt = `Context: ${context}\nUser: ${userMessage}\nResponse:`;
       const result = await model.generateContent(prompt);
       const response = await result.response;
