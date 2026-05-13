@@ -1,65 +1,63 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+:root {
+  --background: 220 20% 97%;
+  --foreground: 222 47% 11%;
 
-@layer base {
-  :root {
-    --background: 220 20% 97%;
-    --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+  --primary: 217 56% 24%;
+  --primary-foreground: 0 0% 100%;
 
-    --primary: 217 56% 24%;
-    --primary-foreground: 0 0% 100%;
+  --secondary: 42 55% 55%;
+  --secondary-foreground: 0 0% 100%;
 
-    --secondary: 42 55% 55%;
-    --secondary-foreground: 0 0% 100%;
+  --muted: 220 14% 94%;
+  --muted-foreground: 220 9% 46%;
 
-    --muted: 220 14% 94%;
-    --muted-foreground: 220 9% 46%;
+  --accent: 220 14% 96%;
+  --accent-foreground: 222 47% 11%;
 
-    --accent: 220 14% 96%;
-    --accent-foreground: 222 47% 11%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
+  --success: 152 56% 39%;
+  --success-foreground: 0 0% 100%;
 
-    --success: 152 56% 39%;
-    --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 217 56% 24%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 217 56% 24%;
+  --radius: 0.75rem;
 
-    --radius: 0.75rem;
+  --sidebar-background: 217 56% 20%;
+  --sidebar-foreground: 220 20% 95%;
+  --sidebar-primary: 42 55% 55%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 217 56% 16%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-border: 217 40% 28%;
+  --sidebar-ring: 42 55% 55%;
 
-    --sidebar-background: 217 56% 20%;
-    --sidebar-foreground: 220 20% 95%;
-    --sidebar-primary: 42 55% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 56% 16%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 217 40% 28%;
-    --sidebar-ring: 42 55% 55%;
+  --navy: 217 56% 24%;
+  --gold: 42 55% 55%;
 
-    --navy: 217 56% 24%;
-    --gold: 42 55% 55%;
-
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03), 0 1px 3px 0 rgb(0 0 0 / 0.04);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.03);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.03);
-    --shadow-card: 0 1px 3px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.03);
-  }
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03), 0 1px 3px 0 rgb(0 0 0 / 0.04);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.03);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.03);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.03);
 }
+
 
 @layer base {
   * {
@@ -75,13 +73,20 @@
     font-size: 14px;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     letter-spacing: -0.025em;
   }
 
   /* Premium form elements */
-  input, select, textarea {
+  input,
+  select,
+  textarea {
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
   }
 }
@@ -91,15 +96,19 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
   }
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 5px;
   }
+
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
+
   .scrollbar-thin::-webkit-scrollbar-thumb {
     @apply bg-border/60 rounded-full;
   }
+
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     @apply bg-border;
   }
