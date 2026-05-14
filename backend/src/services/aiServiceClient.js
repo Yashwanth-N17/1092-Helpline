@@ -22,6 +22,11 @@ class AIServiceClient {
     const response = await this.client.post('/summary/summarize', { transcript });
     return response.data.summary;
   }
+
+  async analyzePipeline(text) {
+    const response = await this.client.post('/pipeline/analyze', { text });
+    return response.data;
+  }
 }
 
 module.exports = new AIServiceClient();

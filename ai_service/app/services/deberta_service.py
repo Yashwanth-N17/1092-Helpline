@@ -1,11 +1,34 @@
 from typing import Dict, Any
 from app.core.config import settings
+from transformers import pipeline
+import logging
+import asyncio
+import torch
 
 class DebertaService:
     def __init__(self):
         self.model_name = settings.DEBERTA_MODEL_NAME
         self.labels = ["Emergency", "Enquiry", "Harassment", "Infrastructure", "Medical"]
         self.severity_labels = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+
+        # For mapping the detected generic label to a specific intent
+        self.intent_labels = [
+            "Police Emergency",
+            "Fire Emergency",
+            "Medical Emergency",
+            "Women Safety",
+            "Infrastructure Complaint",
+            "General Enquiry"
+        ]
+
+        self.intent_to_top_label = {
+            "Police Emergency": "Emergency",
+            "Fire Emergency": "Emergency",
+            "Women Safety": "Harassment",
+            "Medical Emergency": "Medical",
+            "Infrastructure Complaint": "Infrastructure",
+            "General Enquiry": "Enquiry"
+        }
 
     async def analyze_text(self, text: str) -> Dict[str, Any]:
         text_lower = text.lower()

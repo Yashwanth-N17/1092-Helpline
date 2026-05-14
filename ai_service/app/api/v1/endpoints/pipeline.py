@@ -1,40 +1,49 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.services.deberta_service import deberta_service
+import asyncio
+import logging
 
+from app.services.deberta_service import deberta_service
+from app.services.groq_service import groq_service
+from app.services.gemini_service import gemini_service
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
-class AudioInputRequest(BaseModel):
+class PipelineRequest(BaseModel):
     text: str
-    originalText: str = ""
 
-def detect_language(text: str) -> str:
-    kannada_chars = any('\u0C80' <= c <= '\u0CFF' for c in text)
-    hindi_chars = any('\u0900' <= c <= '\u097F' for c in text)
-    tamil_chars = any('\u0B80' <= c <= '\u0BFF' for c in text)
+class PipelineResponse(BaseModel):
+    severity: str
+    reply: str
+    summary: str
 
-    if kannada_chars:
-        return "Kannada"
-    elif hindi_chars:
-        return "Hindi"
-    elif tamil_chars:
-        return "Tamil"
-    else:
-        return "English"
-
-@router.post("/input")
-async def pipeline_input(request: AudioInputRequest):
+@router.post("/analyze", response_model=PipelineResponse)
+async def analyze_pipeline(request: PipelineRequest):
+    """
+    Unified Pipeline endpoint combining:
+    1. DeBERTa model for Severity Classification
+    2. Gemini API for generating a context-aware safe reply
+    3. Groq API for generating a 1-2 line case summary
+    """
     try:
-        language = detect_language(request.originalText or request.text)
-        analysis = await deberta_service.analyze_text(request.text)
-        severity = await deberta_service.detect_severity(request.text)
+        # Run all three AI tasks concurrently to drastically minimize total latency
+        severity_task = asyncio.create_task(deberta_service.detect_severity(request.text))
+        reply_task = asyncio.create_task(gemini_service.generate_reply(request.text))
+        summary_task = asyncio.create_task(groq_service.generate_summary(request.text))
 
-        return {
-            "text": request.text,
-            "language": language,
-            "originalText": request.originalText or request.text,
-            "intent": analysis.get("intent", "Unknown"),
-            "severity": severity
-        }
+        severity, reply, summary = await asyncio.gather(
+            severity_task,
+            reply_task,
+            summary_task
+        )
+
+        return PipelineResponse(
+            severity=severity,
+            reply=reply,
+            summary=summary
+        )
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in analyze_pipeline: {e}")
+        raise HTTPException(status_code=500, detail=f"Pipeline processing failed: {str(e)}")

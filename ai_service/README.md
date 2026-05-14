@@ -1,6 +1,8 @@
 # 1092 Helpline - AI Service Layer
 
-This is the intelligence layer of the 1092 Helpline, built with **FastAPI**. It handles computationally intensive AI tasks that require a Python environment.
+This is the intelligence layer of the 1092 Helpline, built with **FastAPI** and powered by **Groq AI, Google Gemini, and HuggingFace DeBERTa**. It handles computationally intensive AI tasks, classifications, and responses.
+
+---
 
 ## Features
 
@@ -8,191 +10,125 @@ This is the intelligence layer of the 1092 Helpline, built with **FastAPI**. It 
   - **AI Analysis**: Classifies citizen intent and emergency type
   - **Severity Detection**: Detects severity from LOW to CRITICAL
 
-- **DeepSeek Reasoner**
-  - **Case Summary Generation**: Generates concise summaries from transcripts
+- **Google Gemini 2.5 Flash**
+  - **AI Reply Generator**: Generates context-aware, calming, safe responses for the caller.
+
+- **Groq Llama 3.3 70B**
+  - **Case Summary Generation**: Generates concise, factual summaries from call transcripts for officer dashboards.
+
+- **Unified Pipeline**
+  - **Pipeline API**: Processes severity, reply, and summary concurrently for ultra-fast latency.
+
+---
 
 ## Tech Stack
 
 - **Framework**: FastAPI
 - **Language**: Python 3.9+
-- **Libraries**: Transformers, Torch, Pydantic, HTTPX
+- **AI Models**:
+  - HuggingFace `cross-encoder/nli-deberta-v3-small`
+  - Groq `llama-3.3-70b-versatile`
+  - Google Gemini `gemini-2.5-flash`
+- **Libraries**: Transformers, Torch, Pydantic, HTTPX, Google Generative AI
 
 ---
 
-## Getting Started
+## Installation
 
-### Prerequisites
-
-- Python installed
-- Virtual environment (recommended)
-
----
-
-### Installation
-
-1. Navigate to directory:
+### 1. Navigate to the directory
 
 ```bash
 cd ai_service
 ```
 
-2. Create virtual environment:
+### 2. Create and activate virtual environment
 
+#### Windows
 ```bash
 python -m venv venv
-```
-
-3. Activate environment:
-
-Windows:
-
-```bash
 venv\Scripts\activate
 ```
 
-Linux/Mac:
-
+#### Linux / Mac
 ```bash
+python3 -m venv venv
 source venv/bin/activate
 ```
 
-4. Install dependencies:
+### 3. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-5. Environment setup:
+### 4. Configure Environment Variables
 
-```bash
-cp .env.example .env
+Create `.env` file:
+
+```env
+PROJECT_NAME="1092 Helpline AI Service"
+VERSION="1.0.0"
+
+# DeBERTa Model
+DEBERTA_MODEL_NAME="cross-encoder/nli-deberta-v3-small"
+
+# Groq Configuration
+GROQ_API_KEY="your_groq_api_key"
+GROQ_BASE_URL="https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL_NAME="llama-3.3-70b-versatile"
+
+# Gemini Configuration
+GEMINI_API_KEY="your_gemini_api_key"
+GEMINI_MODEL="gemini-2.5-flash"
 ```
-
-Edit `.env` with API keys if required.
 
 ---
 
 ## Running the Service
 
-Run:
+Run the server:
 
 ```bash
-python -m uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload --port 8001
 ```
 
-Service will run at:
-
-```text
-http://127.0.0.1:8000
-```
-
-Swagger docs:
-
-```text
-http://127.0.0.1:8000/docs
-```
+- **Base URL**: `http://127.0.0.1:8001`
+- **Swagger Docs**: `http://127.0.0.1:8001/docs`
 
 ---
 
 ## API Endpoints
 
-### 1. AI Analysis
+### 1. Unified Pipeline (Day 2 Final Target)
 
-**Endpoint**
-
-```http
-POST /api/v1/analysis/analyze
-```
+**Endpoint**: `POST /api/v1/pipeline/analyze`
 
 **Request**
-
 ```json
 {
-  "text": "There is a robbery happening near MG Road Bangalore send police immediately"
+  "text": "My father hit me"
 }
 ```
 
 **Response**
-
 ```json
 {
-  "top_label": "Emergency",
-  "scores": {
-    "Emergency": 0.95,
-    "Infrastructure": 0.02,
-    "Enquiry": 0.03
-  },
-  "intent": "Police Emergency",
-  "confidence": 0.95
+  "severity": "CRITICAL",
+  "reply": "I have noted your emergency. Help is being dispatched immediately, please stay safe and on the line.",
+  "summary": "Citizen reported domestic violence from father."
 }
 ```
+
+### 2. Individual Analysis Tools
+
+**Endpoint**: `POST /api/v1/analysis/analyze`
+**Endpoint**: `POST /api/v1/analysis/severity`
+**Endpoint**: `POST /api/v1/summary/summarize`
+
+*(See Swagger docs for more details on individual routes)*
 
 ---
 
-### 2. Severity Detection
+# Author
 
-**Endpoint**
-
-```http
-POST /api/v1/analysis/severity
-```
-
-**Request**
-
-```json
-{
-  "text": "There is a murder happening with guns near MG Road"
-}
-```
-
-**Response**
-
-```json
-{
-  "severity": "CRITICAL"
-}
-```
-
----
-
-### 3. Case Summary Generation
-
-**Endpoint**
-
-```http
-POST /api/v1/summary/summarize
-```
-
-**Request**
-
-```json
-{
-  "transcript": "Citizen: Hello, there is a fire in the building. AI: What is your location? Citizen: MG Road Apartment 402."
-}
-```
-
-**Response**
-
-```json
-{
-  "summary": "Emergency fire report at MG Road Apartment 402. Occupants may be trapped."
-}
-```
-
----
-
-## Notes
-
-Current implementation includes:
-
-- Emergency intent classification
-- Severity detection
-- AI analysis endpoint
-- Summary generation endpoint
-- Swagger API testing support
-
-Future integration:
-
-- Real DeBERTa inference
-- Telephony integration (Twilio/Exotel alternative)
-- Live AI-human escalation routing
+1092 Helpline AI Backend Team

@@ -4,3 +4,7 @@ pydantic-settings
 httpx
 transformers
 torch
+python-dotenv
+accelerate
+sentencepiece
+google-generativeai
