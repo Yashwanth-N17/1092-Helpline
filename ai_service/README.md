@@ -99,18 +99,20 @@ python -m uvicorn app.main:app --reload --port 8001
 
 ## API Endpoints
 
-### 1. Unified Pipeline (Day 2 Final Target)
+### 1. Unified Pipeline (Recommended)
+
+Combines Severity detection, Safe Reply generation, and Summarization in a single concurrent call.
 
 **Endpoint**: `POST /api/v1/pipeline/analyze`
 
-**Request**
+**Request Body**:
 ```json
 {
   "text": "My father hit me"
 }
 ```
 
-**Response**
+**Response**:
 ```json
 {
   "severity": "CRITICAL",
@@ -119,13 +121,50 @@ python -m uvicorn app.main:app --reload --port 8001
 }
 ```
 
-### 2. Individual Analysis Tools
+---
 
+### 2. Analysis Tools
+
+#### Text Analysis
 **Endpoint**: `POST /api/v1/analysis/analyze`
-**Endpoint**: `POST /api/v1/analysis/severity`
-**Endpoint**: `POST /api/v1/summary/summarize`
+- Generates a general analysis/summary of the input text using Groq.
 
-*(See Swagger docs for more details on individual routes)*
+**Request**: `{ "text": "..." }`
+
+#### Severity Detection
+**Endpoint**: `POST /api/v1/analysis/severity`
+- Specifically classifies the text into `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL` using LLM logic.
+
+**Response**: `{ "severity": "HIGH" }`
+
+---
+
+### 3. Summarization Tools
+
+#### Case Summarization
+**Endpoint**: `POST /api/v1/summary/summarize`
+- Generates a concise summary from a full transcript.
+
+**Request Body**:
+```json
+{
+  "transcript": "Full call transcript text..."
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "summary": "..."
+}
+```
+
+---
+
+## Health Check
+- **Endpoint**: `GET /`
+- Returns service status, version, and active model name.
 
 ---
 
